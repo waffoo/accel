@@ -6,7 +6,7 @@ jobs:
         steps:
             - checkout
             - restore_cache:
-                  key: accel-{{ .Branch }}-{{ checksum "pypoetry.toml" }}
+                  key: accel-{{ .Branch }}-{{ checksum "pyproject.toml" }}
             - run:
                   name: install deps
                   command: |
@@ -14,7 +14,7 @@ jobs:
                       pip install pytest
                       pip install .
             - save_cache:
-                  key: accel-{{ .Branch }}-{{ checksum "pypoetry.toml" }}
+                  key: accel-{{ .Branch }}-{{ checksum "pyproject.toml" }}
                   paths:
                       - "/home/circleci/.local/bin/"
                       - "/home/circleci/.local/lib/"
