@@ -5,8 +5,19 @@ jobs:
             - image: circleci/python:3.8.2
         steps:
             - checkout
-            - run: |
-                pip install -U pip
-                pip install pytest
-                pip install .
-                pytest -v tests
+            - restore_cache:
+                  key: accel-{{ .Branch }}-{{ checksum "pypoetry.toml" }}
+            - run:
+                  name: install deps
+                  command: |
+                      pip install -U pip
+                      pip install pytest
+                      pip install .
+            - save_cache:
+                  key: accel-{{ .Branch }}-{{ checksum "pypoetry.toml" }}
+                  paths:
+                      - "/home/circleci/.local/bin/"
+                      - "/home/circleci/.local/lib/"
+            - run:
+                  name: test command
+                  command: pytest -v tests
