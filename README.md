@@ -1,2 +1,21 @@
-# accel
-accelerate reinforcement learning
+# Accel
+Accel is an open source library for reinforcement learning.
+
+## Install
+You can install Accel via pip (>=19.0) by entering the following command:
+```
+$ pip install git+https://github.com/waffoo/accel
+```
+
+You can also install it from the source code:
+```
+$ pip install .
+```
+
+## Algorithms
+Following algorithms have benn implemented:
+- [DQN](https://web.stanford.edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf)
+  (including [Double DQN](https://arxiv.org/abs/1509.06461))
+
+## Lisense
+[MIT License](LICENSE)
