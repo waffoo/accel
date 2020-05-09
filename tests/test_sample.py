@@ -1,2 +1,2 @@
 def test_one_eq_one():
-    assert 2 == 1
+    assert 1 == 1
