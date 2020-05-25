@@ -54,6 +54,7 @@ def plot_scores():
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 env = gym.make('CartPole-v0').unwrapped
+env.seed(seed)
 dim_state = len(env.observation_space.low)
 dim_action = env.action_space.n
 
