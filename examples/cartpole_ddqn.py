@@ -61,7 +61,7 @@ dim_action = env.action_space.n
 
 num_episodes = 250
 dim_hidden = 32
-GAMMA = 0.95
+GAMMA = 0.99
 max_episode_len = 200
 
 
@@ -101,7 +101,7 @@ for i in range(num_episodes):
         step = 0
 
         while not done and step < max_episode_len:
-            action = agent.act(obs, eval=True)
+            action = agent.act(obs, greedy=True)
             obs, reward, done, _ = env.step(action)
 
             total_reward += reward
