@@ -10,9 +10,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 
-from accel.explorers.epsilon_greedy import ExpDecayEpsilonGreedy
+from accel.explorers import epsilon_greedy
 from accel.replay_buffers.replay_buffer import Transition, ReplayBuffer
-from accel.agents.dqn import DoubleDQN
+from accel.agents import dqn
 
 seed = 0
 random.seed(seed)
@@ -70,9 +70,10 @@ memory = ReplayBuffer(capacity=50000)
 
 scores = []
 
-explorer = ExpDecayEpsilonGreedy(start=0.9, end=0.01, decay=2000)
+explorer = epsilon_greedy.ExpDecayEpsilonGreedy(
+    start_eps=0.9, end_eps=0.05, decay=2000)
 
-agent = DoubleDQN(q_func, optimizer, memory, GAMMA, explorer, device)
+agent = dqn.DoubleDQN(q_func, optimizer, memory, GAMMA, explorer, device)
 
 for i in range(num_episodes):
     obs = env.reset()

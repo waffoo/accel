@@ -18,11 +18,32 @@ class EpsilonGreedyBase:
             return torch.tensor([[random.randrange(n_actions)]])
 
 
+class ConstantEpsilonGreedy(EpsilonGreedyBase):
+    def __init__(self, eps):
+        self.eps = eps
+
+    def calc_eps(self, step):
+        return self.eps
+
+
+class LinearDecayEpsilonGreedy(EpsilonGreedyBase):
+    def __init__(self, start_eps, end_eps, decay_steps):
+        self.start_eps = start_eps
+        self.end_eps = end_eps
+        self.decay_steps = decay_steps
+
+    def calc_eps(self, step):
+        if step >= self.decay_steps:
+            return self.end_eps
+
+        return self.start_eps - (self.start_eps - self.end_eps) * step / self.decay_steps
+
+
 class ExpDecayEpsilonGreedy(EpsilonGreedyBase):
-    def __init__(self, start, end, decay):
-        self.start = start
-        self.end = end
+    def __init__(self, start_eps, end_eps, decay):
+        self.start_eps = start_eps
+        self.end_eps = end_eps
         self.decay = decay
 
     def calc_eps(self, step):
-        return self.end + (self.start - self.end) * math.exp(-1. * step / self.decay)
+        return self.end_eps + (self.start_eps - self.end_eps) * math.exp(-1. * step / self.decay)
