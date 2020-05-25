@@ -34,19 +34,20 @@ class Net(nn.Module):
         return self.l3(h2)
 
 
-def plot_scores():
+def plot_scores(episodes, scores):
     plt.figure(2)
     plt.clf()
-    durations_t = torch.tensor(scores, dtype=torch.float)
+    scores = torch.tensor(scores, dtype=torch.float)
     plt.title('Training...')
     plt.xlabel('Episode')
     plt.ylabel('Duration')
-    plt.plot(durations_t.numpy())
+    plt.plot(episodes, scores)
     # Take 100 episode averages and plot them too
-    if len(durations_t) >= 100:
-        means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
-        means = torch.cat((torch.zeros(99), means))
-        plt.plot(means.numpy())
+    window_size = 5
+    if len(scores) >= window_size:
+        means = scores.unfold(0, window_size, 1).mean(1).view(-1)
+        means = torch.cat((torch.zeros(window_size - 1), means))
+        plt.plot(episodes, means)
 
     plt.pause(0.001)  # pause a bit so that plots are updated
 
@@ -68,10 +69,11 @@ q_func = Net(dim_state, dim_action, dim_hidden)
 optimizer = optim.Adam(q_func.parameters())
 memory = ReplayBuffer(capacity=50000)
 
+score_episodes = []
 scores = []
 
-explorer = epsilon_greedy.ExpDecayEpsilonGreedy(
-    start_eps=0.9, end_eps=0.05, decay=2000)
+explorer = epsilon_greedy.LinearDecayEpsilonGreedy(
+    start_eps=0.9, end_eps=0.1, decay_steps=20000)
 
 agent = dqn.DoubleDQN(q_func, optimizer, memory, GAMMA, explorer, device)
 
@@ -92,10 +94,23 @@ for i in range(num_episodes):
 
         obs = next_obs
 
-    scores.append(total_reward)
-    plot_scores()
     if i % 5 == 0:
-        print(i, total_reward)
+        obs = env.reset()
+        done = False
+        total_reward = 0
+        step = 0
+
+        while not done and step < max_episode_len:
+            action = agent.act(obs, eval=True)
+            obs, reward, done, _ = env.step(action)
+
+            total_reward += reward
+            step += 1
+
+        score_episodes.append(i)
+        scores.append(total_reward)
+        plot_scores(score_episodes, scores)
+        print(i, agent.total_steps, total_reward)
 
 
 print('Complete')

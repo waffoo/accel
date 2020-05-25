@@ -25,12 +25,12 @@ class DQN:
 
         self.target_q_func.eval()
 
-    def act(self, obs):
+    def act(self, obs, eval=False):
         obs = torch.tensor([obs], device=self.device, dtype=torch.float32)
         with torch.no_grad():
             action_value = self.q_func(obs)
 
-        action = self.explorer.act(self.total_steps, action_value)
+        action = self.explorer.act(self.total_steps, action_value, greedy=eval)
         self.total_steps += 1
         return action.item()
 
