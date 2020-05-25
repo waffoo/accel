@@ -7,12 +7,12 @@ class EpsilonGreedyBase:
     def calc_eps(self, step):
         raise NotImplementedError
 
-    def act(self, step, action_value):
+    def act(self, step, action_value, greedy=False):
         sample = random.random()
         eps = self.calc_eps(step)
 
         n_actions = action_value.shape[1]
-        if sample > eps:
+        if greedy or sample > eps:
             return action_value.max(1)[1].view(1, 1)
         else:
             return torch.tensor([[random.randrange(n_actions)]])
