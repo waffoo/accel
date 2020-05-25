@@ -70,7 +70,7 @@ memory = ReplayBuffer(capacity=50000)
 
 scores = []
 
-explorer = ExpDecayEpsilonGreedy(start=0.9, end=0.01, decay=200)
+explorer = ExpDecayEpsilonGreedy(start=0.9, end=0.01, decay=2000)
 
 agent = DoubleDQN(q_func, optimizer, memory, GAMMA, explorer, device)
 
