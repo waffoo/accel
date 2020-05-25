@@ -1,4 +1,6 @@
 # Accel
+[![build](https://img.shields.io/circleci/build/github/waffoo/accel?logo=circleci)](https://app.circleci.com/pipelines/github/waffoo/accel)
+
 Accel is an open source library for reinforcement learning.
 
 ## Install
