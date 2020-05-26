@@ -8,7 +8,9 @@ from accel.replay_buffers.replay_buffer import Transition
 class DQN:
     def __init__(self, q_func, optimizer, replay_buffer, gamma, explorer,
                  device,
-                 batch_size=64, target_update_interval=200, huber=False):
+                 batch_size=32,
+                 update_interval=4,
+                 target_update_interval=200, huber=False):
         self.q_func = q_func.to(device)
         self.target_q_func = copy.deepcopy(self.q_func).to(device)
         self.optimizer = optimizer
@@ -17,6 +19,7 @@ class DQN:
         self.explorer = explorer
         self.device = device
         self.batch_size = batch_size
+        self.update_interval = update_interval
         self.target_update_interval = target_update_interval
         self.huber = huber
         self.total_steps = 0
@@ -47,7 +50,8 @@ class DQN:
         self.replay_buffer.push(obs, action, next_obs, reward)
 
         self.total_steps += 1
-        self.train()
+        if self.total_steps % self.update_interval == 0:
+            self.train()
 
     def non_final_next_state_value(self, non_final_next_states):
         return self.target_q_func(non_final_next_states).max(1)[0].detach()

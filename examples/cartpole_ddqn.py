@@ -75,7 +75,8 @@ scores = []
 explorer = epsilon_greedy.LinearDecayEpsilonGreedy(
     start_eps=0.9, end_eps=0.1, decay_steps=20000)
 
-agent = dqn.DoubleDQN(q_func, optimizer, memory, GAMMA, explorer, device)
+agent = dqn.DoubleDQN(q_func, optimizer, memory, GAMMA,
+                      explorer, device, update_interval=1)
 
 for i in range(num_episodes):
     obs = env.reset()
