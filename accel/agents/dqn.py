@@ -32,7 +32,6 @@ class DQN:
 
         action = self.explorer.act(
             self.total_steps, action_value, greedy=greedy)
-        self.total_steps += 1
         return action.item()
 
     def update(self, obs, action, next_obs, reward, done):
@@ -47,6 +46,7 @@ class DQN:
 
         self.replay_buffer.push(obs, action, next_obs, reward)
 
+        self.total_steps += 1
         self.train()
 
     def non_final_next_state_value(self, non_final_next_states):
