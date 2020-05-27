@@ -175,6 +175,38 @@ while agent.total_steps < num_steps:
         with open(log_file_name, 'a') as f:
             f.write(log)
 
+# final evaluation
+total_reward = 0
+step = 0
+
+while True:
+    obs = eval_env.reset()
+    done = False
+
+    while not done:
+        action = agent.act(obs)
+        obs, reward, done, _ = eval_env.step(action)
+
+        total_reward += reward
+        step += 1
+
+    if eval_env.was_real_done:
+        break
+
+score_steps.append(agent.total_steps)
+scores.append(total_reward)
+
+model_name = f'{result_dir}/final.model'
+torch.save(q_func.state_dict(), model_name)
+
+now = time.time()
+elapsed = now - train_start_time
+
+log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
+print(log, end='')
+
+with open(log_file_name, 'a') as f:
+    f.write(log)
 
 print('Complete')
 env.close()
