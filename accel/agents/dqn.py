@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import copy
 import torch.nn.functional as F
 
@@ -38,14 +39,11 @@ class DQN:
         return action.item()
 
     def update(self, obs, action, next_obs, reward, done):
-        obs = torch.tensor(
-            [obs], device=self.device, dtype=torch.float32)
-        next_obs = torch.tensor(
-            [next_obs], device=self.device, dtype=torch.float32) if not done else None
-        action = torch.tensor(
-            [[action]], device=self.device)
-        reward = torch.tensor(
-            [reward], device=self.device, dtype=torch.float32)
+        obs = obs[np.newaxis, ...].astype(np.float32)
+        next_obs = next_obs[np.newaxis, ...].astype(
+            np.float32) if not done else None
+        action = np.array([[action]], dtype=np.float32)
+        reward = np.array([reward], dtype=np.float32)
 
         self.replay_buffer.push(obs, action, next_obs, reward)
 
@@ -65,12 +63,17 @@ class DQN:
 
         non_final_mask = torch.tensor(tuple(map(
             lambda s: s is not None, batch.next_state)), device=self.device)
-        non_final_next_states = torch.cat(
+        non_final_next_states = np.concatenate(
             [s for s in batch.next_state if s is not None])
+        non_final_next_states = torch.tensor(
+            non_final_next_states, device=self.device, dtype=torch.float32)
 
-        state_batch = torch.cat(batch.state)
-        action_batch = torch.cat(batch.action)
-        reward_batch = torch.cat(batch.reward)
+        state_batch = torch.tensor(np.concatenate(
+            batch.state), device=self.device, dtype=torch.float32)
+        action_batch = torch.tensor(np.concatenate(
+            batch.action), device=self.device, dtype=torch.int64)
+        reward_batch = torch.tensor(np.concatenate(
+            batch.reward), device=self.device, dtype=torch.float32)
 
         state_action_values = self.q_func(state_batch).gather(1, action_batch)
 

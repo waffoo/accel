@@ -92,7 +92,7 @@ else:
     q_func = Net(dim_state, dim_action)
 
 optimizer = optim.RMSprop(q_func.parameters(), lr=0.00025)
-memory = ReplayBuffer(capacity=10**6)
+memory = ReplayBuffer(capacity=5 * 10**5)
 
 score_steps = []
 scores = []
