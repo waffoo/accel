@@ -30,22 +30,20 @@ class DQN:
         self.target_q_func.eval()
 
     def act(self, obs, greedy=False):
-        obs = torch.tensor([obs], device=self.device, dtype=torch.float32)
+        obs = torch.tensor(obs, device=self.device, dtype=torch.float32)
+
         with torch.no_grad():
-            action_value = self.q_func(obs)
+            action_value = self.q_func(obs[None])
 
         action = self.explorer.act(
             self.total_steps, action_value, greedy=greedy)
         return action.item()
 
     def update(self, obs, action, next_obs, reward, done):
-        obs = obs[np.newaxis, ...].astype(np.float32)
-        next_obs = next_obs[np.newaxis, ...].astype(
-            np.float32) if not done else None
-        action = np.array([[action]], dtype=np.float32)
-        reward = np.array([reward], dtype=np.float32)
+        if done:
+            next_obs = None
 
-        self.replay_buffer.push(obs, action, next_obs, reward)
+        self.replay_buffer.push(obs, action, next_obs, np.float32(reward))
 
         self.total_steps += 1
         if self.total_steps % self.update_interval == 0:
@@ -63,17 +61,15 @@ class DQN:
 
         non_final_mask = torch.tensor(tuple(map(
             lambda s: s is not None, batch.next_state)), device=self.device)
-        non_final_next_states = np.concatenate(
-            [s for s in batch.next_state if s is not None])
         non_final_next_states = torch.tensor(
-            non_final_next_states, device=self.device, dtype=torch.float32)
+            [s for s in batch.next_state if s is not None], device=self.device, dtype=torch.float32)
 
-        state_batch = torch.tensor(np.concatenate(
-            batch.state), device=self.device, dtype=torch.float32)
-        action_batch = torch.tensor(np.concatenate(
-            batch.action), device=self.device, dtype=torch.int64)
-        reward_batch = torch.tensor(np.concatenate(
-            batch.reward), device=self.device, dtype=torch.float32)
+        state_batch = torch.tensor(
+            batch.state, device=self.device, dtype=torch.float32)
+        action_batch = torch.tensor(
+            batch.action, device=self.device, dtype=torch.int64).unsqueeze(1)
+        reward_batch = torch.tensor(
+            batch.reward, device=self.device, dtype=torch.float32)
 
         state_action_values = self.q_func(state_batch).gather(1, action_batch)
 
