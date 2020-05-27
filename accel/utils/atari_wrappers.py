@@ -222,12 +222,13 @@ class LazyFrames(object):
         buffers.
         This object should only be converted to numpy array before being passed to the model.
         You'd not believe how complex the previous solution was."""
+        # for PyTorch version
         self._frames = frames
         self._out = None
 
     def _force(self):
         if self._out is None:
-            self._out = np.concatenate(self._frames, axis=-1)
+            self._out = np.concatenate(self._frames, axis=0)
             self._frames = None
         return self._out
 
@@ -245,10 +246,10 @@ class LazyFrames(object):
 
     def count(self):
         frames = self._force()
-        return frames.shape[frames.ndim - 1]
+        return frames.shape[0]
 
     def frame(self, i):
-        return self._force()[..., i]
+        return self._force()[i, ...]
 
 
 class WarpPyTorch(gym.ObservationWrapper):
@@ -277,8 +278,8 @@ class FrameStack(gym.Wrapper):
         self.k = k
         self.frames = deque([], maxlen=k)
         shp = env.observation_space.shape
-        self.observation_space = spaces.Box(low=0, high=255, shape=(
-            shp[:-1] + (shp[-1] * k,)), dtype=env.observation_space.dtype)
+        self.observation_space = spaces.Box(low=0, high=255, shape=((shp[0] * k, ) + shp[1:]),
+                                            dtype=env.observation_space.dtype)
 
     def reset(self):
         ob = self.env.reset()
@@ -331,14 +332,14 @@ def make_atari(name, max_episode_len=None, episodic_life=True, clip_rewards=True
 
     env = WarpFrame(env)
 
+    if pytorch:
+        env = WarpPyTorch(env)
+
     if clip_rewards:
         env = ClipRewardEnv(env)
 
-    # if frame_stack:
-    #    env = FrameStack(env, 4)
-
-    if pytorch:
-        env = WarpPyTorch(env)
+#    if frame_stack:
+#        env = FrameStack(env, 4)
 
     return env
 
