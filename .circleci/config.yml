@@ -11,8 +11,8 @@ jobs:
                   name: install deps
                   command: |
                       pip install -U pip
-                      pip install pytest
                       pip install .
+                      pip install pytest
             - save_cache:
                   key: accel-{{ .Branch }}-{{ checksum "pyproject.toml" }}
                   paths:
