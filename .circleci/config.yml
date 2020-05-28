@@ -10,9 +10,9 @@ jobs:
             - run:
                   name: install deps
                   command: |
+                      sudo apt install cmake
                       pip install -U pip
                       pip install .
-                      pip install pytest
             - save_cache:
                   key: accel-{{ .Branch }}-{{ checksum "pyproject.toml" }}
                   paths:
