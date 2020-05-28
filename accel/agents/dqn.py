@@ -61,11 +61,12 @@ class DQN:
 
         non_final_mask = torch.tensor(tuple(map(
             lambda s: s is not None, batch.next_state)), device=self.device)
+        next_states = np.stack([s for s in batch.next_state if s is not None])
         non_final_next_states = torch.tensor(
-            [s for s in batch.next_state if s is not None], device=self.device, dtype=torch.float32)
+            next_states, device=self.device, dtype=torch.float32)
 
         state_batch = torch.tensor(
-            batch.state, device=self.device, dtype=torch.float32)
+            np.stack(batch.state), device=self.device, dtype=torch.float32)
         action_batch = torch.tensor(
             batch.action, device=self.device, dtype=torch.int64).unsqueeze(1)
         reward_batch = torch.tensor(
