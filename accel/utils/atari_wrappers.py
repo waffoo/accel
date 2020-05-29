@@ -338,8 +338,8 @@ def make_atari(name, max_episode_len=None, episodic_life=True, clip_rewards=True
     if clip_rewards:
         env = ClipRewardEnv(env)
 
-#    if frame_stack:
-#        env = FrameStack(env, 4)
+    if frame_stack:
+        env = FrameStack(env, 4)
 
     return env
 

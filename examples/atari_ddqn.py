@@ -62,6 +62,10 @@ class RamNet(nn.Module):
 parser = argparse.ArgumentParser()
 parser.add_argument('--env', default='BreakoutNoFrameskip-v4',
                     help='name of environment')
+parser.add_argument('--load', default=None,
+                    help='model path')
+parser.add_argument('--demo', action='store_true',
+                    help='demo flag')
 args = parser.parse_args()
 
 
@@ -91,6 +95,10 @@ if is_ram:
 else:
     q_func = Net(dim_state, dim_action)
 
+if args.load is not None:
+    q_func.load_state_dict(torch.load(args.load, map_location=device))
+
+
 optimizer = optim.RMSprop(q_func.parameters(), lr=0.00025)
 memory = ReplayBuffer(capacity=5 * 10**5)
 
@@ -102,6 +110,31 @@ explorer = epsilon_greedy.LinearDecayEpsilonGreedy(
 
 agent = dqn.DoubleDQN(q_func, optimizer, memory, GAMMA,
                       explorer, device, batch_size=32, target_update_interval=10000)
+
+if args.demo:
+    for x in range(10):
+        total_reward = 0
+
+        while True:
+            obs = eval_env.reset()
+            eval_env.render()
+            done = False
+
+            while not done:
+                action = agent.act(obs, greedy=True)
+                obs, reward, done, _ = eval_env.step(action)
+                eval_env.render()
+
+                print(reward)
+                total_reward += reward
+
+            if eval_env.was_real_done:
+                break
+
+        print('Episode:', x, 'Score:', total_reward)
+
+    exit(0)
+
 
 next_eval_cnt = 1
 episode_cnt = 0
@@ -140,18 +173,16 @@ while agent.total_steps < num_steps:
 
     if agent.total_steps > next_eval_cnt * eval_interval:
         total_reward = 0
-        step = 0
 
         while True:
             obs = eval_env.reset()
             done = False
 
             while not done:
-                action = agent.act(obs)
+                action = agent.act(obs, greedy=True)
                 obs, reward, done, _ = eval_env.step(action)
 
                 total_reward += reward
-                step += 1
 
             if eval_env.was_real_done:
                 break
@@ -177,18 +208,16 @@ while agent.total_steps < num_steps:
 
 # final evaluation
 total_reward = 0
-step = 0
 
 while True:
     obs = eval_env.reset()
     done = False
 
     while not done:
-        action = agent.act(obs)
+        action = agent.act(obs, greedy=True)
         obs, reward, done, _ = eval_env.step(action)
 
         total_reward += reward
-        step += 1
 
     if eval_env.was_real_done:
         break
