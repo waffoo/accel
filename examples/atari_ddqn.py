@@ -74,10 +74,10 @@ is_ram = '-ram-' in args.env
 
 if is_ram:
     env = make_atari_ram(args.env)
-    eval_env = make_atari_ram(args.env)
+    eval_env = make_atari_ram(args.env, clip_rewards=False)
 else:
     env = make_atari(args.env)
-    eval_env = make_atari(args.env)
+    eval_env = make_atari(args.env, clip_rewards=False)
 
 env.seed(seed)
 eval_env.seed(seed)
@@ -100,7 +100,7 @@ if args.load is not None:
 
 
 optimizer = optim.RMSprop(q_func.parameters(), lr=0.00025)
-memory = ReplayBuffer(capacity=5 * 10**5)
+memory = ReplayBuffer(capacity=10**6)
 
 score_steps = []
 scores = []
