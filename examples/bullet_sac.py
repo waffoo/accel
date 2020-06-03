@@ -57,7 +57,7 @@ agent = SAC(critic1, critic2, actor, q1_optim, q2_optim, actor_optim,
 
 torch.autograd.set_detect_anomaly(True)
 
-num_steps = 10**6
+num_steps = 5 * 10**6
 eval_interval = 10**4
 
 next_eval_cnt = 1

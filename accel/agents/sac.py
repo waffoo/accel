@@ -12,7 +12,7 @@ class SAC:
                  action_space,
                  gamma, replay_buffer, tau=0.005,
                  lr=3e-4,
-                 batch_size=32,
+                 batch_size=256,
                  update_interval=4,
                  target_update_interval=1):
         self.critic1 = critic1.to(device)
