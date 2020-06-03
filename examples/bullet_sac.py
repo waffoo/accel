@@ -115,11 +115,14 @@ while agent.total_steps < num_steps:
         scores.append(total_reward)
 
         if total_reward > best_score:
-            model_name = f'{result_dir}/{agent.total_steps}-q1.model'
+            dirname = f'{result_dir}/{agent.total_steps}'
+            if not os.path.exists(dirname):
+                os.mkdir(dirname)
+            model_name = f'{dirname}/q1.model'
             torch.save(critic1.state_dict(), model_name)
-            model_name = f'{result_dir}/{agent.total_steps}-q2.model'
+            model_name = f'{dirname}/q2.model'
             torch.save(critic2.state_dict(), model_name)
-            model_name = f'{result_dir}/{agent.total_steps}-pi.model'
+            model_name = f'{dirname}/pi.model'
             torch.save(actor.state_dict(), model_name)
 
             best_score = total_reward
