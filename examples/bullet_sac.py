@@ -100,18 +100,14 @@ while agent.total_steps < num_steps:
     if agent.total_steps > next_eval_cnt * eval_interval:
         total_reward = 0
 
-        while True:
-            obs = eval_env.reset()
-            done = False
+        obs = eval_env.reset()
+        done = False
 
-            while not done:
-                action = agent.act(obs, greedy=True)
-                obs, reward, done, _ = eval_env.step(action)
+        while not done:
+            action = agent.act(obs, greedy=True)
+            obs, reward, done, _ = eval_env.step(action)
 
-                total_reward += reward
-
-            if eval_env.was_real_done:
-                break
+            total_reward += reward
 
         next_eval_cnt += 1
 

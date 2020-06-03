@@ -68,8 +68,6 @@ class SAC:
             return action[0]
 
     def try_act(self, obs):
-        obs = torch.tensor(obs, device=self.device, dtype=torch.float32)
-
         mean, log_std = torch.split(self.actor(obs), self.n_actions, dim=1)
         torch.clamp(log_std, -20, 2)
 
