@@ -20,7 +20,7 @@ torch.cuda.manual_seed(seed)
 torch.backends.cudnn.deterministic = True
 
 
-env = gym.make('HumanoidPyBulletEnv-v0')
+env = RewardScaler(gym.make('HumanoidPyBulletEnv-v0'), scale=20)
 eval_env = gym.make('HumanoidPyBulletEnv-v0')
 #env = gym.wrappers.Monitor(env, 'movie', force=True)
 # env.render(mode='human')

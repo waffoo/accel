@@ -15,10 +15,10 @@ class SAC:
                  batch_size=32,
                  update_interval=4,
                  target_update_interval=1):
-        self.critic1 = critic1
-        self.critic2 = critic2
+        self.critic1 = critic1.to(device)
+        self.critic2 = critic2.to(device)
         self.gamma = gamma
-        self.actor = actor
+        self.actor = actor.to(device)
         self.device = device
         self.q1_optim = q1_optim
         self.q2_optim = q2_optim
@@ -34,8 +34,8 @@ class SAC:
         self.target_critic2.eval()
         self.total_steps = 0
         self.n_actions = len(action_space.low)
-        self.action_scale = torch.tensor((action_space.high - action_space.low) / 2)
-        self.action_bias = torch.tensor((action_space.low + action_space.high) / 2)
+        self.action_scale = torch.tensor((action_space.high - action_space.low) / 2).to(device)
+        self.action_bias = torch.tensor((action_space.low + action_space.high) / 2).to(device)
 
 
         # that is -|A|
@@ -59,13 +59,13 @@ class SAC:
 
         if greedy:
             action = torch.tanh(mean) * self.action_scale + self.action_bias
-            return action[0]
+            return action[0].to('cpu').detach().numpy()
         else:
             normal = Normal(mean, log_std.exp())
             x_t = normal.rsample()  # latent space
             y_t = torch.tanh(x_t)   # squash
             action = y_t * self.action_scale + self.action_bias
-            return action[0]
+            return action[0].to('cpu').detach().numpy()
 
     def try_act(self, obs):
         mean, log_std = torch.split(self.actor(obs), self.n_actions, dim=1)
