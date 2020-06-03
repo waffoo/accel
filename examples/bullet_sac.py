@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from accel.agents.sac import SAC
 from accel.replay_buffers.replay_buffer import ReplayBuffer
+from accel.utils.wrappers import RewardScaler
 import datetime
 import time
 import os
