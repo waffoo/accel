@@ -54,15 +54,20 @@ def plot_scores(episodes, scores):
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-env = gym.make('CartPole-v0').unwrapped
+env = gym.make('Pendulum-v0').unwrapped
 env.seed(seed)
 dim_state = len(env.observation_space.low)
-dim_action = env.action_space.n
+dim_action = 5
 
 num_episodes = 250
 dim_hidden = 32
 GAMMA = 0.99
 max_episode_len = 200
+
+
+def translate(n):
+    return float(n - 2)
+
 
 
 q_func = Net(dim_state, dim_action, dim_hidden)
@@ -87,13 +92,11 @@ for i in range(num_episodes):
     while not done and step < max_episode_len:
         # env.render()
         action = agent.act(obs)
-        next_obs, reward, done, _ = env.step(action)
+        next_obs, reward, done, _ = env.step([translate(action)])
+        agent.update(obs, action, next_obs, reward, done)
+
         total_reward += reward
         step += 1
-
-        next_valid = 1 if step == max_episode_len else float(not done)
-
-        agent.update(obs, action, next_obs, reward, next_valid)
 
         obs = next_obs
 
@@ -105,7 +108,7 @@ for i in range(num_episodes):
 
         while not done and step < max_episode_len:
             action = agent.act(obs, greedy=True)
-            obs, reward, done, _ = env.step(action)
+            obs, reward, done, _ = env.step([translate(action)])
 
             total_reward += reward
             step += 1
