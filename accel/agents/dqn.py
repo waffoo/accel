@@ -39,9 +39,9 @@ class DQN:
             self.total_steps, action_value, greedy=greedy)
         return action.item()
 
-    def update(self, obs, action, next_obs, reward, done):
+    def update(self, obs, action, next_obs, reward, valid):
         self.replay_buffer.push(obs, action, next_obs,
-                                np.float32(reward), done)
+                                np.float32(reward), valid)
 
         self.total_steps += 1
         if self.total_steps % self.update_interval == 0:
@@ -65,13 +65,13 @@ class DQN:
             np.stack(batch.next_state), device=self.device, dtype=torch.float32)
         reward_batch = torch.tensor(
             batch.reward, device=self.device, dtype=torch.float32)
-        done_batch = torch.tensor(
-            batch.done, device=self.device, dtype=torch.float32)
+        valid_batch = torch.tensor(
+            batch.valid, device=self.device, dtype=torch.float32)
 
         state_action_values = self.q_func(state_batch).gather(1, action_batch)
 
         expected_state_action_values = reward_batch + \
-            (1. - done_batch) * self.gamma * \
+            valid_batch * self.gamma * \
             self.next_state_value(next_state_batch)
 
         if self.huber:

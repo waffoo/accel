@@ -2,7 +2,7 @@ from collections import namedtuple
 import random
 
 Transition = namedtuple(
-    'Transition', ('state', 'action', 'next_state', 'reward', 'done'))
+    'Transition', ('state', 'action', 'next_state', 'reward', 'valid'))
 
 
 class ReplayBuffer(object):

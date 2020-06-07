@@ -165,10 +165,12 @@ while agent.total_steps < num_steps:
     while not done:
         action = agent.act(obs)
         next_obs, reward, done, _ = env.step(action)
-        agent.update(obs, action, next_obs, reward, done)
-
         total_reward += reward
         step += 1
+
+        next_valid = 1 if step == env.spec.max_episode_steps else float(not done)
+        agent.update(obs, action, next_obs, reward, next_valid)
+
 
         obs = next_obs
 

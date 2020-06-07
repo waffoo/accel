@@ -20,45 +20,24 @@ torch.cuda.manual_seed(seed)
 torch.backends.cudnn.deterministic = True
 
 
-env = RewardScaler(gym.make('HumanoidPyBulletEnv-v0'), scale=20)
-eval_env = gym.make('HumanoidPyBulletEnv-v0')
+env = RewardScaler(gym.make('Pendulum-v0'), scale=1)
+eval_env = gym.make('Pendulum-v0')
 #env = gym.wrappers.Monitor(env, 'movie', force=True)
 # env.render(mode='human')
-
-
-class Net(torch.nn.Module):
-    def __init__(self, n_input, n_output, n_hidden=256):
-        super().__init__()
-        self.fc1 = nn.Linear(n_input, n_hidden)
-        self.fc2 = nn.Linear(n_hidden, n_hidden)
-        self.fc3 = nn.Linear(n_hidden, n_output)
-
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        return self.fc3(x)
 
 n_states = env.observation_space.shape[0]
 n_actions = len(env.action_space.low)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-critic1 = Net(n_states+n_actions, 1)
-critic2 = Net(n_states+n_actions, 1)
-actor = Net(n_states, n_actions * 2)
-q1_optim = torch.optim.Adam(critic1.parameters(), lr=3e-4)
-q2_optim = torch.optim.Adam(critic2.parameters(), lr=3e-4)
-actor_optim = torch.optim.Adam(actor.parameters(), lr=3e-4)
 
 memory = ReplayBuffer(capacity=10**6)
 
-agent = SAC(critic1, critic2, actor, q1_optim, q2_optim, actor_optim,
-             device=device, action_space=env.action_space, gamma=0.99,
-            replay_buffer=memory)
-
-torch.autograd.set_detect_anomaly(True)
+agent = SAC(device=device, observation_space=env.observation_space, action_space=env.action_space, gamma=0.99,
+            replay_buffer=memory, update_interval=1)
 
 num_steps = 5 * 10**6
-eval_interval = 10**4
+eval_interval = 2 * 10**3
+initial_random_steps = 10**4
 
 next_eval_cnt = 1
 episode_cnt = 0
@@ -89,16 +68,23 @@ while agent.total_steps < num_steps:
     step = 0
 
     while not done:
-        action = agent.act(obs)
-        next_obs, reward, done, _ = env.step(action)
-        agent.update(obs, action, next_obs, reward, done)
+        if agent.total_steps > initial_random_steps:
+            action = agent.act(obs)
+        else:
+            action = env.action_space.sample()
 
+        next_obs, reward, done, _ = env.step(action)
         total_reward += reward
         step += 1
 
+        next_valid = 1 if step == env.spec.max_episode_steps else float(not done)
+        agent.update(obs, action, next_obs, reward, next_valid)
+
         obs = next_obs
 
-    if agent.total_steps > next_eval_cnt * eval_interval:
+    print('Episode: ', episode_cnt, 'Reward: ', total_reward)
+
+    if agent.total_steps >= next_eval_cnt * eval_interval:
         total_reward = 0
 
         obs = eval_env.reset()
@@ -120,11 +106,11 @@ while agent.total_steps < num_steps:
             if not os.path.exists(dirname):
                 os.mkdir(dirname)
             model_name = f'{dirname}/q1.model'
-            torch.save(critic1.state_dict(), model_name)
-            model_name = f'{dirname}/q2.model'
-            torch.save(critic2.state_dict(), model_name)
-            model_name = f'{dirname}/pi.model'
-            torch.save(actor.state_dict(), model_name)
+            #torch.save(critic1.state_dict(), model_name)
+            #model_name = f'{dirname}/q2.model'
+            #torch.save(critic2.state_dict(), model_name)
+            #model_name = f'{dirname}/pi.model'
+            #torch.save(actor.state_dict(), model_name)
 
             best_score = total_reward
 
@@ -132,7 +118,9 @@ while agent.total_steps < num_steps:
         elapsed = now - train_start_time
 
         log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
+        print('-----------------------')
         print(log, end='')
+        print('-----------------------')
 
         with open(log_file_name, 'a') as f:
             f.write(log)
