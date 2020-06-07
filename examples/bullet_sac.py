@@ -20,8 +20,8 @@ torch.cuda.manual_seed(seed)
 torch.backends.cudnn.deterministic = True
 
 
-env = RewardScaler(gym.make('Pendulum-v0'), scale=1)
-eval_env = gym.make('Pendulum-v0')
+env = RewardScaler(gym.make('HumanoidPyBulletEnv-v0'), scale=1)
+eval_env = gym.make('HumanoidPyBulletEnv-v0')
 #env = gym.wrappers.Monitor(env, 'movie', force=True)
 # env.render(mode='human')
 
@@ -36,7 +36,7 @@ agent = SAC(device=device, observation_space=env.observation_space, action_space
             replay_buffer=memory, update_interval=1)
 
 num_steps = 5 * 10**6
-eval_interval = 2 * 10**3
+eval_interval = 5 * 10**3
 initial_random_steps = 10**4
 
 next_eval_cnt = 1
@@ -82,8 +82,6 @@ while agent.total_steps < num_steps:
 
         obs = next_obs
 
-    print('Episode: ', episode_cnt, 'Reward: ', total_reward)
-
     if agent.total_steps >= next_eval_cnt * eval_interval:
         total_reward = 0
 
@@ -106,11 +104,11 @@ while agent.total_steps < num_steps:
             if not os.path.exists(dirname):
                 os.mkdir(dirname)
             model_name = f'{dirname}/q1.model'
-            #torch.save(critic1.state_dict(), model_name)
-            #model_name = f'{dirname}/q2.model'
-            #torch.save(critic2.state_dict(), model_name)
-            #model_name = f'{dirname}/pi.model'
-            #torch.save(actor.state_dict(), model_name)
+            torch.save(agent.critic1.state_dict(), model_name)
+            model_name = f'{dirname}/q2.model'
+            torch.save(agent.critic2.state_dict(), model_name)
+            model_name = f'{dirname}/pi.model'
+            torch.save(agent.actor.state_dict(), model_name)
 
             best_score = total_reward
 
@@ -118,9 +116,7 @@ while agent.total_steps < num_steps:
         elapsed = now - train_start_time
 
         log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
-        print('-----------------------')
         print(log, end='')
-        print('-----------------------')
 
         with open(log_file_name, 'a') as f:
             f.write(log)

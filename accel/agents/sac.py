@@ -54,11 +54,11 @@ class SAC:
         self.device = device
         self.n_obs = observation_space.shape[0]
         self.n_actions = action_space.shape[0]
-        self.critic1 = CriticNet(self.n_obs, 1).to(self.device)
-        self.critic2 = CriticNet(self.n_obs, 1).to(self.device)
+        self.critic1 = CriticNet(self.n_obs, self.n_actions).to(self.device)
+        self.critic2 = CriticNet(self.n_obs, self.n_actions).to(self.device)
 
         self.gamma = gamma
-        self.actor = ActorNet(self.n_obs, 1).to(device)
+        self.actor = ActorNet(self.n_obs, self.n_actions).to(device)
         self.q1_optim = Adam(self.critic1.parameters(), lr=lr)
         self.q2_optim = Adam(self.critic2.parameters(), lr=lr)
         self.actor_optim = Adam(self.actor.parameters(), lr=lr)
