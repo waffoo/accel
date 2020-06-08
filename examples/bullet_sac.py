@@ -1,5 +1,5 @@
 import gym
-import pybulletgym
+import pybullet_envs
 import numpy as np
 import random
 import torch
@@ -20,10 +20,10 @@ torch.cuda.manual_seed(seed)
 torch.backends.cudnn.deterministic = True
 
 
-env = RewardScaler(gym.make('HumanoidPyBulletEnv-v0'), scale=1)
-eval_env = gym.make('HumanoidPyBulletEnv-v0')
+env = RewardScaler(gym.make('HumanoidBulletEnv-v0'), scale=1)
+eval_env = gym.make('HumanoidBulletEnv-v0')
 #env = gym.wrappers.Monitor(env, 'movie', force=True)
-# env.render(mode='human')
+#env.render(mode='human')
 
 n_states = env.observation_space.shape[0]
 n_actions = len(env.action_space.low)
