@@ -9,6 +9,7 @@ from accel.agents.sac import SAC
 from accel.replay_buffers.replay_buffer import ReplayBuffer
 from accel.utils.wrappers import RewardScaler
 import datetime
+import argparse
 import time
 import os
 
@@ -19,9 +20,20 @@ torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 torch.backends.cudnn.deterministic = True
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--env', default='HumanoidBulletEnv-v0',
+                    help='name of environment')
+parser.add_argument('--load', default=None,
+                    help='model path')
+parser.add_argument('--demo', action='store_true',
+                    help='demo flag')
+parser.add_argument('--scale', type=float, default=1.,
+                    help='reward scale')
+args = parser.parse_args()
 
-env = RewardScaler(gym.make('HumanoidBulletEnv-v0'), scale=1)
-eval_env = gym.make('HumanoidBulletEnv-v0')
+
+env = RewardScaler(gym.make(args.env), scale=args.scale)
+eval_env = gym.make(args.env)
 #env = gym.wrappers.Monitor(env, 'movie', force=True)
 #env.render(mode='human')
 
@@ -33,7 +45,28 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 memory = ReplayBuffer(capacity=10**6)
 
 agent = SAC(device=device, observation_space=env.observation_space, action_space=env.action_space, gamma=0.99,
-            replay_buffer=memory, update_interval=1)
+            replay_buffer=memory, update_interval=1, load=args.load)
+
+if args.demo:
+    eval_env.render(mode='human')
+    for x in range(10):
+        total_reward = 0
+
+        obs = eval_env.reset()
+        done = False
+
+        while not done:
+            action = agent.act(obs, greedy=True)
+            obs, reward, done, _ = eval_env.step(action)
+
+            total_reward += reward
+
+        print(f'Episode: {x+1}  Score:{total_reward}')
+
+    exit(0)
+
+
+
 
 num_steps = 5 * 10**6
 eval_interval = 5 * 10**3
