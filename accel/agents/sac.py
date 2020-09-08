@@ -4,7 +4,7 @@ import numpy as np
 import torch.nn as nn
 import copy
 import torch.nn.functional as F
-from torch.optim import  Adam
+from torch.optim import Adam
 from accel.replay_buffers.replay_buffer import Transition
 
 
@@ -61,9 +61,12 @@ class SAC:
         self.gamma = gamma
         self.actor = ActorNet(self.n_obs, self.n_actions).to(device)
         if load is not None:
-            self.critic1.load_state_dict(torch.load(f'{load}/q1.model', map_location=device))
-            self.critic2.load_state_dict(torch.load(f'{load}/q2.model', map_location=device))
-            self.actor.load_state_dict(torch.load(f'{load}/pi.model', map_location=device))
+            self.critic1.load_state_dict(torch.load(
+                f'{load}/q1.model', map_location=device))
+            self.critic2.load_state_dict(torch.load(
+                f'{load}/q2.model', map_location=device))
+            self.actor.load_state_dict(torch.load(
+                f'{load}/pi.model', map_location=device))
 
         self.q1_optim = Adam(self.critic1.parameters(), lr=lr)
         self.q2_optim = Adam(self.critic2.parameters(), lr=lr)
@@ -78,11 +81,12 @@ class SAC:
 
         self.total_steps = 0
         self.n_actions = len(action_space.low)
-        self.action_scale = torch.tensor((action_space.high - action_space.low) / 2).to(device)
-        self.action_bias = torch.tensor((action_space.low + action_space.high) / 2).to(device)
+        self.action_scale = torch.tensor(
+            (action_space.high - action_space.low) / 2).to(device)
+        self.action_bias = torch.tensor(
+            (action_space.low + action_space.high) / 2).to(device)
 
         self.train_cnt = 0
-
 
         # that is -|A|
         self.target_entropy = -self.n_actions
@@ -99,12 +103,11 @@ class SAC:
     def act(self, obs, greedy=False):
         obs = torch.tensor(obs, device=self.device, dtype=torch.float32)[None]
         if greedy:
-            _, _, action =  self.try_act(obs)
+            _, _, action = self.try_act(obs)
         else:
-            action, _, _ =  self.try_act(obs)
+            action, _, _ = self.try_act(obs)
 
         return action.detach().cpu().numpy()[0]
-
 
     def try_act(self, obs):
         mean, log_std = self.actor(obs)
@@ -132,7 +135,8 @@ class SAC:
             return reward + valid * self.gamma * q
 
     def update(self, obs, action, next_obs, reward, valid):
-        self.replay_buffer.push(obs, action, next_obs, np.float32(reward), valid)
+        self.replay_buffer.push(obs, action, next_obs,
+                                np.float32(reward), valid)
 
         self.total_steps += 1
 
@@ -174,12 +178,8 @@ class SAC:
 
         pi, log_pi, _ = self.try_act(state_batch)
 
-        self.critic1.eval()
-        self.critic2.eval()
         qf1_pi = self.critic1(state_batch, pi)
         qf2_pi = self.critic2(state_batch, pi)
-        self.critic1.train()
-        self.critic2.train()
         min_qf_pi = torch.min(qf1_pi, qf2_pi)
 
         policy_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
@@ -189,7 +189,8 @@ class SAC:
         self.actor_optim.step()
 
         # adjust alpha
-        alpha_loss = -(self.log_alpha * (self.target_entropy + log_pi).detach()).mean()
+        alpha_loss = -(self.log_alpha *
+                       (self.target_entropy + log_pi).detach()).mean()
 
         self.alpha_optim.zero_grad()
         alpha_loss.backward()
@@ -204,4 +205,3 @@ class SAC:
     def soft_update(self, target, source):
         for t, s in zip(target.parameters(), source.parameters()):
             t.data.copy_(t.data * (1.0 - self.tau) + s.data * self.tau)
-
