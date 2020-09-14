@@ -65,14 +65,17 @@ parser.add_argument('--env', default='BreakoutNoFrameskip-v4',
                     help='name of environment')
 parser.add_argument('--load', default=None,
                     help='model path')
-parser.add_argument('--demo', action='store_true',
-                    help='demo flag')
+parser.add_argument('--save', default='', help='save path')
+parser.add_argument('--device', default='', help='device')
+parser.add_argument('--demo', action='store_true', help='demo flag')
+parser.add_argument('--steps', default=10**6, type=int, help='training steps')
 args = parser.parse_args()
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-is_ram = '-ram-' in args.env
+if not args.device:
+    args.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+is_ram = '-ram' in args.env
 if is_ram:
     env = make_atari_ram(args.env)
     eval_env = make_atari_ram(args.env, clip_rewards=False)
@@ -87,7 +90,7 @@ dim_state = env.observation_space.shape[0]
 dim_action = env.action_space.n
 
 
-num_steps = 10**6
+num_steps = args.steps
 eval_interval = 10**4
 GAMMA = 0.99
 
@@ -97,7 +100,7 @@ else:
     q_func = Net(dim_state, dim_action)
 
 if args.load is not None:
-    q_func.load_state_dict(torch.load(args.load, map_location=device))
+    q_func.load_state_dict(torch.load(args.load, map_location=args.device))
 
 
 optimizer = optim.RMSprop(q_func.parameters(), lr=0.00025)
@@ -110,7 +113,7 @@ explorer = epsilon_greedy.LinearDecayEpsilonGreedy(
     start_eps=1.0, end_eps=0.1, decay_steps=1e6)
 
 agent = dqn.DoubleDQN(q_func, optimizer, memory, GAMMA,
-                      explorer, device, batch_size=32, target_update_interval=10000)
+                      explorer, args.device, batch_size=32, target_update_interval=10000)
 
 if args.demo:
     for x in range(10):
@@ -126,7 +129,7 @@ if args.demo:
                 obs, reward, done, _ = eval_env.step(action)
                 eval_env.render()
 
-                print(reward)
+                # print(reward)
                 total_reward += reward
 
             if eval_env.was_real_done:
@@ -146,7 +149,11 @@ if not os.path.exists('results'):
     os.mkdir('results')
 
 timestamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
-result_dir = f'results/{timestamp}'
+
+if args.save:
+    result_dir = f'results/{args.save}-{timestamp}'
+else:
+    result_dir = f'results/{timestamp}'
 
 if not os.path.exists(result_dir):
     os.mkdir(result_dir)
@@ -168,9 +175,9 @@ while agent.total_steps < num_steps:
         total_reward += reward
         step += 1
 
-        next_valid = 1 if step == env.spec.max_episode_steps else float(not done)
+        next_valid = 1 if step == env.spec.max_episode_steps else float(
+            not done)
         agent.update(obs, action, next_obs, reward, next_valid)
-
 
         obs = next_obs
 
