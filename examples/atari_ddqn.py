@@ -37,6 +37,7 @@ class Net(nn.Module):
         self.fc2 = nn.Linear(512, output)
 
     def forward(self, x):
+        x = x / 255.
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
@@ -68,7 +69,8 @@ parser.add_argument('--load', default=None,
 parser.add_argument('--save', default='', help='save path')
 parser.add_argument('--device', default='', help='device')
 parser.add_argument('--demo', action='store_true', help='demo flag')
-parser.add_argument('--steps', default=10**6, type=int, help='training steps')
+parser.add_argument('--steps', default=5*10**6,
+                    type=int, help='training steps')
 args = parser.parse_args()
 
 
@@ -103,7 +105,8 @@ if args.load is not None:
     q_func.load_state_dict(torch.load(args.load, map_location=args.device))
 
 
-optimizer = optim.RMSprop(q_func.parameters(), lr=0.00025)
+optimizer = optim.RMSprop(
+    q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
 memory = ReplayBuffer(capacity=10**6)
 
 score_steps = []
