@@ -58,15 +58,15 @@ class DQN:
         batch = Transition(*zip(*transitions))
 
         state_batch = torch.tensor(
-            np.stack(batch.state), device=self.device, dtype=torch.float32)
+            np.array(batch.state, dtype=np.float32), device=self.device)
         action_batch = torch.tensor(
             batch.action, device=self.device, dtype=torch.int64).unsqueeze(1)
         next_state_batch = torch.tensor(
-            np.stack(batch.next_state), device=self.device, dtype=torch.float32)
+            np.array(batch.next_state, dtype=np.float32), device=self.device)
         reward_batch = torch.tensor(
-            batch.reward, device=self.device, dtype=torch.float32)
+            np.array(batch.reward, dtype=np.float32), device=self.device)
         valid_batch = torch.tensor(
-            batch.valid, device=self.device, dtype=torch.float32)
+            np.array(batch.valid, dtype=np.float32), device=self.device)
 
         state_action_values = self.q_func(state_batch).gather(1, action_batch)
 

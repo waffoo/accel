@@ -153,15 +153,15 @@ class SAC:
         batch = Transition(*zip(*transitions))
 
         state_batch = torch.tensor(
-            np.stack(batch.state), device=self.device, dtype=torch.float32)
+            np.array(batch.state, dtype=np.float32), device=self.device)
         action_batch = torch.tensor(
-            np.stack(batch.action), device=self.device, dtype=torch.float32)
+            np.array(batch.action, dtype=np.float32), device=self.device)
         next_state_batch = torch.tensor(
-            np.stack(batch.next_state), device=self.device, dtype=torch.float32)
+            np.array(batch.next_state, dtype=np.float32), device=self.device)
         reward_batch = torch.tensor(
-            batch.reward, device=self.device, dtype=torch.float32).unsqueeze(1)
+            np.array(batch.reward, dtype=np.float32), device=self.device).unsqueeze(1)
         valid_batch = torch.tensor(
-            batch.valid, device=self.device, dtype=torch.float32).unsqueeze(1)
+            np.array(batch.valid, dtype=np.float32), device=self.device).unsqueeze(1)
 
         target_q = self.calc_target_q(
             state_batch, action_batch, reward_batch, next_state_batch, valid_batch)
