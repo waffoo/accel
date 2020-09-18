@@ -74,10 +74,6 @@ def main(cfg):
     dim_state = env.observation_space.shape[0]
     dim_action = env.action_space.n
 
-    num_steps = cfg.steps
-    eval_interval = 10**2
-    GAMMA = 0.99
-
     if is_ram:
         q_func = RamNet(dim_state, dim_action)
     else:
@@ -88,7 +84,7 @@ def main(cfg):
 
     optimizer = optim.RMSprop(
         q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
-    memory = ReplayBuffer(capacity=10**6)
+    memory = ReplayBuffer(capacity=cfg.replay_capacity)
 
     score_steps = []
     scores = []
@@ -96,7 +92,7 @@ def main(cfg):
     explorer = epsilon_greedy.LinearDecayEpsilonGreedy(
         start_eps=1.0, end_eps=0.1, decay_steps=1e6)
 
-    agent = dqn.DoubleDQN(q_func, optimizer, memory, GAMMA,
+    agent = dqn.DoubleDQN(q_func, optimizer, memory, cfg.gamma,
                           explorer, cfg.device, batch_size=32, target_update_interval=10000)
 
     if cfg.demo:
@@ -144,7 +140,7 @@ def main(cfg):
     log_file_name = f'{result_dir}/scores.txt'
     best_score = -1e10
 
-    while agent.total_steps < num_steps:
+    while agent.total_steps < cfg.steps:
         episode_cnt += 1
 
         obs = env.reset()
@@ -164,7 +160,7 @@ def main(cfg):
 
             obs = next_obs
 
-        if agent.total_steps > next_eval_cnt * eval_interval:
+        if agent.total_steps > next_eval_cnt * cfg.eval_interval:
             total_reward = 0
 
             while True:

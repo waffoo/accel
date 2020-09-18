@@ -5,3 +5,6 @@ device: ""
 demo: False
 steps: 5_000_000
 seed: 0
+eval_interval: 10_000
+gamma: 0.99
+replay_capacity: 1_000_000
