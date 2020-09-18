@@ -4,3 +4,4 @@ save: ""
 device: ""
 demo: False
 steps: 5_000_000
+seed: 0

@@ -8,8 +8,6 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-import numpy as np
-import random
 import hydra
 import datetime
 import os
@@ -18,13 +16,7 @@ from accel.utils.atari_wrappers import make_atari, make_atari_ram
 from accel.explorers import epsilon_greedy
 from accel.replay_buffers.replay_buffer import Transition, ReplayBuffer
 from accel.agents import dqn
-
-seed = 0
-random.seed(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed(seed)
-torch.backends.cudnn.deterministic = True
+from accel.utils.utils import set_seed
 
 
 class Net(nn.Module):
@@ -63,6 +55,8 @@ class RamNet(nn.Module):
 
 @hydra.main(config_name='config/atari_ddqn_config.yaml')
 def main(cfg):
+    set_seed(cfg.seed)
+
     if not cfg.device:
         cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -74,14 +68,14 @@ def main(cfg):
         env = make_atari(cfg.env)
         eval_env = make_atari(cfg.env, clip_rewards=False)
 
-    env.seed(seed)
-    eval_env.seed(seed)
+    env.seed(cfg.seed)
+    eval_env.seed(cfg.seed)
 
     dim_state = env.observation_space.shape[0]
     dim_action = env.action_space.n
 
     num_steps = cfg.steps
-    eval_interval = 10**4
+    eval_interval = 10**2
     GAMMA = 0.99
 
     if is_ram:
