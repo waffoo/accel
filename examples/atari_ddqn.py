@@ -1,16 +1,11 @@
 import time
 import gym
-import copy
 # from gym.utils.play import play import random
-import math
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
 import hydra
-import datetime
-import os
 
 from accel.utils.atari_wrappers import make_atari, make_atari_ram
 from accel.explorers import epsilon_greedy
