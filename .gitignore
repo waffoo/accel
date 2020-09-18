@@ -133,3 +133,4 @@ poetry.lock
 *scores.txt
 results/
 movie/
+outputs/

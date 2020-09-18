@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import numpy as np
 import random
-import argparse
+import hydra
 import datetime
 import os
 
@@ -61,194 +61,184 @@ class RamNet(nn.Module):
         return F.relu(self.fc4(x))
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--env', default='BreakoutNoFrameskip-v4',
-                    help='name of environment')
-parser.add_argument('--load', default=None,
-                    help='model path')
-parser.add_argument('--save', default='', help='save path')
-parser.add_argument('--device', default='', help='device')
-parser.add_argument('--demo', action='store_true', help='demo flag')
-parser.add_argument('--steps', default=5*10**6,
-                    type=int, help='training steps')
-args = parser.parse_args()
+@hydra.main(config_name='config/atari_ddqn_config.yaml')
+def main(cfg):
+    if not cfg.device:
+        cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+    is_ram = '-ram' in cfg.env
+    if is_ram:
+        env = make_atari_ram(cfg.env)
+        eval_env = make_atari_ram(cfg.env, clip_rewards=False)
+    else:
+        env = make_atari(cfg.env)
+        eval_env = make_atari(cfg.env, clip_rewards=False)
 
-if not args.device:
-    args.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    env.seed(seed)
+    eval_env.seed(seed)
 
-is_ram = '-ram' in args.env
-if is_ram:
-    env = make_atari_ram(args.env)
-    eval_env = make_atari_ram(args.env, clip_rewards=False)
-else:
-    env = make_atari(args.env)
-    eval_env = make_atari(args.env, clip_rewards=False)
+    dim_state = env.observation_space.shape[0]
+    dim_action = env.action_space.n
 
-env.seed(seed)
-eval_env.seed(seed)
+    num_steps = cfg.steps
+    eval_interval = 10**4
+    GAMMA = 0.99
 
-dim_state = env.observation_space.shape[0]
-dim_action = env.action_space.n
+    if is_ram:
+        q_func = RamNet(dim_state, dim_action)
+    else:
+        q_func = Net(dim_state, dim_action)
 
+    if cfg.load:
+        q_func.load_state_dict(torch.load(cfg.load, map_location=cfg.device))
 
-num_steps = args.steps
-eval_interval = 10**4
-GAMMA = 0.99
+    optimizer = optim.RMSprop(
+        q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
+    memory = ReplayBuffer(capacity=10**6)
 
-if is_ram:
-    q_func = RamNet(dim_state, dim_action)
-else:
-    q_func = Net(dim_state, dim_action)
+    score_steps = []
+    scores = []
 
-if args.load is not None:
-    q_func.load_state_dict(torch.load(args.load, map_location=args.device))
+    explorer = epsilon_greedy.LinearDecayEpsilonGreedy(
+        start_eps=1.0, end_eps=0.1, decay_steps=1e6)
 
+    agent = dqn.DoubleDQN(q_func, optimizer, memory, GAMMA,
+                          explorer, cfg.device, batch_size=32, target_update_interval=10000)
 
-optimizer = optim.RMSprop(
-    q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
-memory = ReplayBuffer(capacity=10**6)
+    if cfg.demo:
+        for x in range(10):
+            total_reward = 0
 
-score_steps = []
-scores = []
-
-explorer = epsilon_greedy.LinearDecayEpsilonGreedy(
-    start_eps=1.0, end_eps=0.1, decay_steps=1e6)
-
-agent = dqn.DoubleDQN(q_func, optimizer, memory, GAMMA,
-                      explorer, args.device, batch_size=32, target_update_interval=10000)
-
-if args.demo:
-    for x in range(10):
-        total_reward = 0
-
-        while True:
-            obs = eval_env.reset()
-            eval_env.render()
-            done = False
-
-            while not done:
-                action = agent.act(obs, greedy=True)
-                obs, reward, done, _ = eval_env.step(action)
+            while True:
+                obs = eval_env.reset()
                 eval_env.render()
+                done = False
 
-                # print(reward)
-                total_reward += reward
+                while not done:
+                    action = agent.act(obs, greedy=True)
+                    obs, reward, done, _ = eval_env.step(action)
+                    eval_env.render()
 
-            if eval_env.was_real_done:
-                break
+                    # print(reward)
+                    total_reward += reward
 
-        print('Episode:', x, 'Score:', total_reward)
+                if eval_env.was_real_done:
+                    break
 
-    exit(0)
+            print('Episode:', x, 'Score:', total_reward)
 
+        exit(0)
 
-next_eval_cnt = 1
-episode_cnt = 0
+    next_eval_cnt = 1
+    episode_cnt = 0
 
-train_start_time = time.time()
+    train_start_time = time.time()
 
-if not os.path.exists('results'):
-    os.mkdir('results')
+    if not os.path.exists('results'):
+        os.mkdir('results')
 
-timestamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
+    timestamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
 
-if args.save:
-    result_dir = f'results/{args.save}-{timestamp}'
-else:
-    result_dir = f'results/{timestamp}'
+    if cfg.save:
+        result_dir = f'results/{cfg.save}-{timestamp}'
+    else:
+        result_dir = f'results/{timestamp}'
 
-if not os.path.exists(result_dir):
-    os.mkdir(result_dir)
+    if not os.path.exists(result_dir):
+        os.mkdir(result_dir)
 
-log_file_name = f'{result_dir}/scores.txt'
-best_score = -1e10
+    log_file_name = f'{result_dir}/scores.txt'
+    best_score = -1e10
 
-while agent.total_steps < num_steps:
-    episode_cnt += 1
+    while agent.total_steps < num_steps:
+        episode_cnt += 1
 
-    obs = env.reset()
-    done = False
-    total_reward = 0
-    step = 0
-
-    while not done:
-        action = agent.act(obs)
-        next_obs, reward, done, _ = env.step(action)
-        total_reward += reward
-        step += 1
-
-        next_valid = 1 if step == env.spec.max_episode_steps else float(
-            not done)
-        agent.update(obs, action, next_obs, reward, next_valid)
-
-        obs = next_obs
-
-    if agent.total_steps > next_eval_cnt * eval_interval:
+        obs = env.reset()
+        done = False
         total_reward = 0
+        step = 0
 
-        while True:
-            obs = eval_env.reset()
-            done = False
+        while not done:
+            action = agent.act(obs)
+            next_obs, reward, done, _ = env.step(action)
+            total_reward += reward
+            step += 1
 
-            while not done:
-                action = agent.act(obs, greedy=True)
-                obs, reward, done, _ = eval_env.step(action)
+            next_valid = 1 if step == env.spec.max_episode_steps else float(
+                not done)
+            agent.update(obs, action, next_obs, reward, next_valid)
 
-                total_reward += reward
+            obs = next_obs
 
-            if eval_env.was_real_done:
-                break
+        if agent.total_steps > next_eval_cnt * eval_interval:
+            total_reward = 0
 
-        next_eval_cnt += 1
+            while True:
+                obs = eval_env.reset()
+                done = False
 
-        score_steps.append(agent.total_steps)
-        scores.append(total_reward)
+                while not done:
+                    action = agent.act(obs, greedy=True)
+                    obs, reward, done, _ = eval_env.step(action)
 
-        if total_reward > best_score:
-            model_name = f'{result_dir}/{agent.total_steps}.model'
-            torch.save(q_func.state_dict(), model_name)
-            best_score = total_reward
+                    total_reward += reward
 
-        now = time.time()
-        elapsed = now - train_start_time
+                if eval_env.was_real_done:
+                    break
 
-        log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
-        print(log, end='')
+            next_eval_cnt += 1
 
-        with open(log_file_name, 'a') as f:
-            f.write(log)
+            score_steps.append(agent.total_steps)
+            scores.append(total_reward)
 
-# final evaluation
-total_reward = 0
+            if total_reward > best_score:
+                model_name = f'{result_dir}/{agent.total_steps}.model'
+                torch.save(q_func.state_dict(), model_name)
+                best_score = total_reward
 
-while True:
-    obs = eval_env.reset()
-    done = False
+            now = time.time()
+            elapsed = now - train_start_time
 
-    while not done:
-        action = agent.act(obs, greedy=True)
-        obs, reward, done, _ = eval_env.step(action)
+            log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
+            print(log, end='')
 
-        total_reward += reward
+            with open(log_file_name, 'a') as f:
+                f.write(log)
 
-    if eval_env.was_real_done:
-        break
+    # final evaluation
+    total_reward = 0
 
-score_steps.append(agent.total_steps)
-scores.append(total_reward)
+    while True:
+        obs = eval_env.reset()
+        done = False
 
-model_name = f'{result_dir}/final.model'
-torch.save(q_func.state_dict(), model_name)
+        while not done:
+            action = agent.act(obs, greedy=True)
+            obs, reward, done, _ = eval_env.step(action)
 
-now = time.time()
-elapsed = now - train_start_time
+            total_reward += reward
 
-log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
-print(log, end='')
+        if eval_env.was_real_done:
+            break
 
-with open(log_file_name, 'a') as f:
-    f.write(log)
+    score_steps.append(agent.total_steps)
+    scores.append(total_reward)
 
-print('Complete')
-env.close()
+    model_name = f'{result_dir}/final.model'
+    torch.save(q_func.state_dict(), model_name)
+
+    now = time.time()
+    elapsed = now - train_start_time
+
+    log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
+    print(log, end='')
+
+    with open(log_file_name, 'a') as f:
+        f.write(log)
+
+    print('Complete')
+    env.close()
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,6 @@
+env: BreakoutNoFrameskip-v4
+load: ""
+save: ""
+device: ""
+demo: False
+steps: 5_000_000
