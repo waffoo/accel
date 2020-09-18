@@ -124,20 +124,7 @@ def main(cfg):
 
     train_start_time = time.time()
 
-    if not os.path.exists('results'):
-        os.mkdir('results')
-
-    timestamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
-
-    if cfg.save:
-        result_dir = f'results/{cfg.save}-{timestamp}'
-    else:
-        result_dir = f'results/{timestamp}'
-
-    if not os.path.exists(result_dir):
-        os.mkdir(result_dir)
-
-    log_file_name = f'{result_dir}/scores.txt'
+    log_file_name = 'scores.txt'
     best_score = -1e10
 
     while agent.total_steps < cfg.steps:
@@ -182,7 +169,7 @@ def main(cfg):
             scores.append(total_reward)
 
             if total_reward > best_score:
-                model_name = f'{result_dir}/{agent.total_steps}.model'
+                model_name = f'{agent.total_steps}.model'
                 torch.save(q_func.state_dict(), model_name)
                 best_score = total_reward
 
@@ -214,7 +201,7 @@ def main(cfg):
     score_steps.append(agent.total_steps)
     scores.append(total_reward)
 
-    model_name = f'{result_dir}/final.model'
+    model_name = f'final.model'
     torch.save(q_func.state_dict(), model_name)
 
     now = time.time()
