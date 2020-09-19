@@ -134,3 +134,4 @@ poetry.lock
 results/
 movie/
 outputs/
+mlruns/

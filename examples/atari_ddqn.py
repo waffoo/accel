@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import hydra
+import mlflow
 
 from accel.utils.atari_wrappers import make_atari, make_atari_ram
 from accel.explorers import epsilon_greedy
@@ -51,6 +52,15 @@ class RamNet(nn.Module):
 @hydra.main(config_name='config/atari_ddqn_config.yaml')
 def main(cfg):
     set_seed(cfg.seed)
+
+    path = hydra.utils.get_original_cwd()
+    mlflow.set_tracking_uri(path+'/mlruns')
+    mlflow.set_experiment('testexp4')
+
+    mlflow.start_run()
+    mlflow.log_param('seed', cfg.seed)
+    mlflow.log_param('gamma', cfg.gamma)
+    mlflow.log_param('replay', cfg.replay_capacity)
 
     if not cfg.device:
         cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -173,6 +183,7 @@ def main(cfg):
 
             log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
             print(log, end='')
+            mlflow.log_metric('reward', total_reward, step=agent.total_steps)
 
             with open(log_file_name, 'a') as f:
                 f.write(log)
@@ -204,12 +215,14 @@ def main(cfg):
 
     log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
     print(log, end='')
+    mlflow.log_metric('reward', total_reward, step=agent.total_steps)
 
     with open(log_file_name, 'a') as f:
         f.write(log)
 
     print('Complete')
     env.close()
+    mlflow.end_run()
 
 
 if __name__ == '__main__':
