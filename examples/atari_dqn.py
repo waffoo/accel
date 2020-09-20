@@ -16,13 +16,17 @@ from accel.utils.utils import set_seed
 
 
 class Net(nn.Module):
-    def __init__(self, input, output):
+    def __init__(self, input, output, dueling=not False):
         super().__init__()
+        self.dueling = dueling
         self.conv1 = nn.Conv2d(input, 32, kernel_size=8, stride=4)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
         self.fc1 = nn.Linear(7 * 7 * 64, 512)
         self.fc2 = nn.Linear(512, output)
+        if self.dueling:
+            self.v_fc1 = nn.Linear(7 * 7 * 64, 512)
+            self.v_fc2 = nn.Linear(512, 1)
 
     def forward(self, x):
         x = x / 255.
@@ -30,8 +34,15 @@ class Net(nn.Module):
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
         x = x.view(x.size(0), -1)
-        x = F.relu(self.fc1(x))
-        return self.fc2(x)
+
+        adv = F.relu(self.fc1(x))
+        adv = self.fc2(adv)
+        if not self.dueling:
+            return adv
+
+        v = F.relu(self.v_fc1(x))
+        v = self.v_fc2(v)
+        return v + adv - adv.mean(dim=1, keepdim=True)
 
 
 class RamNet(nn.Module):
@@ -82,7 +93,7 @@ def main(cfg):
     if is_ram:
         q_func = RamNet(dim_state, dim_action)
     else:
-        q_func = Net(dim_state, dim_action)
+        q_func = Net(dim_state, dim_action, dueling=cfg.dueling)
 
     if cfg.load:
         q_func.load_state_dict(torch.load(cfg.load, map_location=cfg.device))
