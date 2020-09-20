@@ -65,9 +65,8 @@ class RamNet(nn.Module):
 def main(cfg):
     set_seed(cfg.seed)
 
-    path = hydra.utils.get_original_cwd()
-    path = os.path.join(path, 'mlruns')
-    mlflow.set_tracking_uri(path)
+    cwd = hydra.utils.get_original_cwd()
+    mlflow.set_tracking_uri(os.path.join(cwd, 'mlruns'))
     mlflow.set_experiment('atari_dqn')
 
     with mlflow.start_run():
@@ -101,7 +100,7 @@ def main(cfg):
             q_func = Net(dim_state, dim_action, dueling=cfg.dueling)
 
         if cfg.load:
-            q_func.load_state_dict(torch.load(cfg.load, map_location=cfg.device))
+            q_func.load_state_dict(torch.load(os.path.join(cwd, cfg.load), map_location=cfg.device))
 
         optimizer = optim.RMSprop(
             q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
