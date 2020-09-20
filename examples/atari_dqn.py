@@ -17,7 +17,7 @@ from accel.utils.utils import set_seed
 
 
 class Net(nn.Module):
-    def __init__(self, input, output, dueling=not False):
+    def __init__(self, input, output, dueling=False):
         super().__init__()
         self.dueling = dueling
         self.conv1 = nn.Conv2d(input, 32, kernel_size=8, stride=4)
@@ -75,6 +75,7 @@ def main(cfg):
         mlflow.log_param('gamma', cfg.gamma)
         mlflow.log_param('replay', cfg.replay_capacity)
         mlflow.log_param('dueling', cfg.dueling)
+        mlflow.set_tag('env', cfg.env)
 
         if not cfg.device:
             cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -86,6 +87,7 @@ def main(cfg):
         else:
             env = make_atari(cfg.env)
             eval_env = make_atari(cfg.env, clip_rewards=False)
+
 
         env.seed(cfg.seed)
         eval_env.seed(cfg.seed)
