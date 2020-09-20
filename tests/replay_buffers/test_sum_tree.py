@@ -26,3 +26,10 @@ def test_total():
     for p in P:
         tree.add(p, None)
     assert tree.total() == pytest.approx(sum(P))
+
+def test_len():
+    tree = SumTree(10)
+    num_added_elems = 4
+    for i in range(num_added_elems):
+        tree.add(i, None)
+    assert len(tree) == num_added_elems

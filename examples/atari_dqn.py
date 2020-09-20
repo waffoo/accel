@@ -12,6 +12,7 @@ import os
 from accel.utils.atari_wrappers import make_atari, make_atari_ram
 from accel.explorers import epsilon_greedy
 from accel.replay_buffers.replay_buffer import Transition, ReplayBuffer
+from accel.replay_buffers.prioritized_replay_buffer import PrioritizedReplayBuffer
 from accel.agents import dqn
 from accel.utils.utils import set_seed
 
@@ -104,7 +105,8 @@ def main(cfg):
 
         optimizer = optim.RMSprop(
             q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
-        memory = ReplayBuffer(capacity=cfg.replay_capacity)
+        #memory = ReplayBuffer(capacity=cfg.replay_capacity)
+        memory = PrioritizedReplayBuffer(capacity=cfg.replay_capacity)
 
         score_steps = []
         scores = []

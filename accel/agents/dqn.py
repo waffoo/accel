@@ -4,6 +4,7 @@ import copy
 import torch.nn.functional as F
 
 from accel.replay_buffers.replay_buffer import Transition
+from accel.replay_buffers.prioritized_replay_buffer import PrioritizedReplayBuffer
 
 
 class DQN:
@@ -16,6 +17,7 @@ class DQN:
         self.target_q_func = copy.deepcopy(self.q_func).to(device)
         self.optimizer = optimizer
         self.replay_buffer = replay_buffer
+        self.prioritized = isinstance(replay_buffer, PrioritizedReplayBuffer)
         self.gamma = gamma
         self.explorer = explorer
         self.device = device
@@ -39,9 +41,28 @@ class DQN:
             self.total_steps, action_value, greedy=greedy)
         return action.item()
 
+    def abs_td_error(self, obs, action, next_obs, reward, valid):
+        state_batch = torch.tensor(np.array(obs, dtype=np.float32)[None], device=self.device)
+        next_state_batch = torch.tensor(np.array(next_obs, dtype=np.float32)[None], device=self.device)
+        action_batch = torch.tensor(np.array(action)[None], device=self.device, dtype=torch.int64).unsqueeze(1)
+        reward_batch = torch.tensor(np.array(reward, dtype=np.float32)[None], device=self.device)
+        valid_batch = torch.tensor(np.array(valid, dtype=np.float32)[None], device=self.device)
+
+        state_action_values = self.q_func(state_batch).gather(1, action_batch)
+
+        expected_state_action_values = reward_batch + valid_batch * self.gamma * \
+                                       self.next_state_value(next_state_batch)
+
+        return abs(expected_state_action_values - state_action_values.squeeze(1)).item()
+
     def update(self, obs, action, next_obs, reward, valid):
-        self.replay_buffer.push(obs, action, next_obs,
-                                np.float32(reward), valid)
+        if self.prioritized:
+            td_error = self.abs_td_error(obs, action, next_obs, np.float32(reward), valid)
+            self.replay_buffer.push(td_error, obs, action, next_obs,
+                                    np.float32(reward), valid)
+        else:
+            self.replay_buffer.push(obs, action, next_obs,
+                                    np.float32(reward), valid)
 
         self.total_steps += 1
         if self.total_steps % self.update_interval == 0:
@@ -54,7 +75,11 @@ class DQN:
         if len(self.replay_buffer) < self.batch_size:
             return
 
-        transitions = self.replay_buffer.sample(self.batch_size)
+        if self.prioritized:
+            transitions, idx_batch = self.replay_buffer.sample(self.batch_size)
+        else:
+            transitions = self.replay_buffer.sample(self.batch_size)
+
         batch = Transition(*zip(*transitions))
 
         state_batch = torch.tensor(
@@ -68,11 +93,17 @@ class DQN:
         valid_batch = torch.tensor(
             np.array(batch.valid, dtype=np.float32), device=self.device)
 
+
         state_action_values = self.q_func(state_batch).gather(1, action_batch)
 
         expected_state_action_values = reward_batch + \
             valid_batch * self.gamma * \
             self.next_state_value(next_state_batch)
+
+        if self.prioritized:
+            td_error = abs(expected_state_action_values - state_action_values.squeeze(1))
+            for idx, err in zip(idx_batch, td_error):
+                self.replay_buffer.update(idx, err)
 
         if self.huber:
             loss = F.smooth_l1_loss(state_action_values,
