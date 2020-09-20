@@ -17,7 +17,7 @@ $ pip install .
 ## Algorithms
 Following algorithms have benn implemented:
 - [DQN](https://web.stanford.edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf)
-  (including [Double DQN](https://arxiv.org/abs/1509.06461))
+  (including [Double DQN](https://arxiv.org/abs/1509.06461), [Dueling DQN](https://arxiv.org/abs/1511.06581))
 - [Soft Actor-Critic](https://arxiv.org/abs/1801.01290)
 
 ## Lisense
