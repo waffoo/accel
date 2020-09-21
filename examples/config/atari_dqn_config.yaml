@@ -10,3 +10,4 @@ gamma: 0.99
 replay_capacity: 1_000_000
 dueling: False
 prioritized: False
+name: ""

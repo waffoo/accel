@@ -70,7 +70,7 @@ def main(cfg):
     mlflow.set_tracking_uri(os.path.join(cwd, 'mlruns'))
     mlflow.set_experiment('atari_dqn')
 
-    with mlflow.start_run():
+    with mlflow.start_run(run_name=cfg.name):
         mlflow.log_param('seed', cfg.seed)
         mlflow.log_param('gamma', cfg.gamma)
         mlflow.log_param('replay', cfg.replay_capacity)
