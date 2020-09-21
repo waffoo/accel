@@ -75,6 +75,7 @@ def main(cfg):
         mlflow.log_param('gamma', cfg.gamma)
         mlflow.log_param('replay', cfg.replay_capacity)
         mlflow.log_param('dueling', cfg.dueling)
+        mlflow.log_param('prioritized', cfg.prioritized)
         mlflow.set_tag('env', cfg.env)
 
         if not cfg.device:
