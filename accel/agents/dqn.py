@@ -41,24 +41,10 @@ class DQN:
             self.total_steps, action_value, greedy=greedy)
         return action.item()
 
-    def abs_td_error(self, obs, action, next_obs, reward, valid):
-        state_batch = torch.tensor(np.array(obs, dtype=np.float32)[None], device=self.device)
-        next_state_batch = torch.tensor(np.array(next_obs, dtype=np.float32)[None], device=self.device)
-        action_batch = torch.tensor(np.array(action)[None], device=self.device, dtype=torch.int64).unsqueeze(1)
-        reward_batch = torch.tensor(np.array(reward, dtype=np.float32)[None], device=self.device)
-        valid_batch = torch.tensor(np.array(valid, dtype=np.float32)[None], device=self.device)
-
-        state_action_values = self.q_func(state_batch).gather(1, action_batch)
-
-        expected_state_action_values = reward_batch + valid_batch * self.gamma * \
-                                       self.next_state_value(next_state_batch)
-
-        return abs(expected_state_action_values - state_action_values.squeeze(1)).item()
-
     def update(self, obs, action, next_obs, reward, valid):
         if self.prioritized:
-            td_error = self.abs_td_error(obs, action, next_obs, np.float32(reward), valid)
-            self.replay_buffer.push(td_error, obs, action, next_obs,
+            max_priority = self.replay_buffer.max_priority()
+            self.replay_buffer.push(max_priority, obs, action, next_obs,
                                     np.float32(reward), valid)
         else:
             self.replay_buffer.push(obs, action, next_obs,
@@ -76,7 +62,7 @@ class DQN:
             return
 
         if self.prioritized:
-            transitions, idx_batch = self.replay_buffer.sample(self.batch_size)
+            transitions, idx_batch, weights = self.replay_buffer.sample(self.batch_size)
         else:
             transitions = self.replay_buffer.sample(self.batch_size)
 
@@ -106,11 +92,22 @@ class DQN:
                 self.replay_buffer.update(idx, err)
 
         if self.huber:
-            loss = F.smooth_l1_loss(state_action_values,
-                                    expected_state_action_values.unsqueeze(1))
+            if self.prioritized:
+                loss_each = F.smooth_l1_loss(state_action_values,
+                                        expected_state_action_values.unsqueeze(1), reduction='none')
+                loss = torch.sum(loss_each * torch.tensor(weights, device=self.device))
+            else:
+                loss = F.smooth_l1_loss(state_action_values,
+                                        expected_state_action_values.unsqueeze(1))
         else:
-            loss = F.mse_loss(state_action_values,
-                              expected_state_action_values.unsqueeze(1))
+            if self.prioritized:
+                loss_each = F.mse_loss(state_action_values,
+                                  expected_state_action_values.unsqueeze(1), reduction='none')
+                loss = torch.sum(loss_each * torch.tensor(weights, device=self.device))
+
+            else:
+                loss = F.mse_loss(state_action_values,
+                                  expected_state_action_values.unsqueeze(1))
 
         self.optimizer.zero_grad()
         loss.backward()

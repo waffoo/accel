@@ -105,8 +105,11 @@ def main(cfg):
 
         optimizer = optim.RMSprop(
             q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
-        #memory = ReplayBuffer(capacity=cfg.replay_capacity)
-        memory = PrioritizedReplayBuffer(capacity=cfg.replay_capacity)
+
+        if cfg.prioritized:
+            memory = PrioritizedReplayBuffer(capacity=cfg.replay_capacity, beta_steps=cfg.steps)
+        else:
+            memory = ReplayBuffer(capacity=cfg.replay_capacity)
 
         score_steps = []
         scores = []
