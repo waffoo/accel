@@ -8,7 +8,7 @@ Transition = namedtuple(
 
 
 class PrioritizedReplayBuffer(object):
-    def __init__(self, capacity, alpha=0.6, beta0=0.4, eps=0.01, beta_steps=int(2e5)):
+    def __init__(self, capacity, alpha=0.6, beta0=0.4, eps=1e-6, beta_steps=int(2e5)):
         self.capacity = capacity
         self.memory = SumTree(capacity)
         self.eps = eps
