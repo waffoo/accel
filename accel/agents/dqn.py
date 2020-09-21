@@ -43,8 +43,8 @@ class DQN:
 
     def update(self, obs, action, next_obs, reward, valid):
         if self.prioritized:
-            max_priority = self.replay_buffer.max_priority()
-            self.replay_buffer.push(max_priority, obs, action, next_obs,
+            max_err = self.replay_buffer.max_error()
+            self.replay_buffer.push(max_err, obs, action, next_obs,
                                     np.float32(reward), valid)
         else:
             self.replay_buffer.push(obs, action, next_obs,
@@ -87,7 +87,7 @@ class DQN:
             self.next_state_value(next_state_batch)
 
         if self.prioritized:
-            td_error = abs(expected_state_action_values - state_action_values.squeeze(1))
+            td_error = abs(expected_state_action_values - state_action_values.squeeze(1)).tolist()
             for idx, err in zip(idx_batch, td_error):
                 self.replay_buffer.update(idx, err)
 

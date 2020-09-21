@@ -21,9 +21,9 @@ class PrioritizedReplayBuffer(object):
     def _get_priority(self, error):
         return (error + self.eps) ** self.alpha
 
-    def max_priority(self):
+    def max_error(self):
         # TODO max maybe too big
-        return self._get_priority(self.max_err)
+        return self.max_err
 
     def push(self, error, *args):
         self.max_err = max(error, self.max_err)
@@ -56,11 +56,12 @@ class PrioritizedReplayBuffer(object):
             weights.append(weight)
 
         weights = np.array(weights)
-        _initial_data_ratio = (np.array(pris, dtype=np.float32) == self.max_err).mean()
+        _initial_data_ratio = (np.array(pris, dtype=np.float32) == self._get_priority(self.max_err)).mean()
 
         return batch, idx_batch, weights / weights.max()
 
     def update(self, idx, error):
+        self.max_err = max(error, self.max_err)
         p = self._get_priority(error)
         self.memory.update(idx, p)
 
