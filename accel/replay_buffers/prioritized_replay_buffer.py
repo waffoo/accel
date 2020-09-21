@@ -43,8 +43,11 @@ class PrioritizedReplayBuffer(object):
         progress = min(1.0, self.steps / self.beta_steps)
         beta = self.beta0 + (1.0 - self.beta0) * progress
 
-        for _ in range(batch_size):
-            s = random.uniform(0, self.memory.total())
+        segment = self.memory.total() / batch_size
+
+        for i in range(batch_size):
+            a, b = segment * i, segment * (i + 1)
+            s = random.uniform(a, b)
             idx, pri, data = self.memory.get(s)
             prob = pri / total_pri
 
