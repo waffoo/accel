@@ -9,3 +9,4 @@ eval_interval: 10_000
 gamma: 0.99
 replay_capacity: 1_000_000
 dueling: False
+name: ""
