@@ -12,3 +12,4 @@ dueling: False
 name: ""
 color: False
 high_reso: False
+no_stack: False

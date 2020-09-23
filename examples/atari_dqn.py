@@ -78,6 +78,7 @@ def main(cfg):
         mlflow.log_param('dueling', cfg.dueling)
         mlflow.log_param('color', cfg.color)
         mlflow.log_param('high', cfg.high_reso)
+        mlflow.log_param('no_stack', cfg.no_stack)
         mlflow.set_tag('env', cfg.env)
 
         if not cfg.device:
@@ -90,13 +91,14 @@ def main(cfg):
         else:
             if cfg.high_reso:
                 env = make_atari(cfg.env, color=cfg.color,
-                                 image_size=128)
+                                 image_size=128, frame_stack=not cfg.no_stack)
                 eval_env = make_atari(
-                    cfg.env, clip_rewards=False, color=cfg.color, image_size=128)
+                    cfg.env, clip_rewards=False, color=cfg.color, image_size=128, frame_stack=not cfg.no_stack)
             else:
-                env = make_atari(cfg.env, color=cfg.color)
+                env = make_atari(cfg.env, color=cfg.color,
+                                 frame_stack=not cfg.no_stack)
                 eval_env = make_atari(
-                    cfg.env, clip_rewards=False, color=cfg.color)
+                    cfg.env, clip_rewards=False, color=cfg.color, frame_stack=not cfg.no_stack)
 
         env.seed(cfg.seed)
         eval_env.seed(cfg.seed)
