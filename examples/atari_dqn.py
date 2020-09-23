@@ -30,6 +30,7 @@ class Net(nn.Module):
             self.v_fc2 = nn.Linear(512, 1)
 
     def forward(self, x):
+        print(x.shape)
         x = x / 255.
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
@@ -84,9 +85,8 @@ def main(cfg):
             env = make_atari_ram(cfg.env)
             eval_env = make_atari_ram(cfg.env, clip_rewards=False)
         else:
-            env = make_atari(cfg.env)
-            eval_env = make_atari(cfg.env, clip_rewards=False)
-
+            env = make_atari(cfg.env, color=cfg.color)
+            eval_env = make_atari(cfg.env, clip_rewards=False, color=cfg.color)
 
         env.seed(cfg.seed)
         eval_env.seed(cfg.seed)
@@ -100,7 +100,8 @@ def main(cfg):
             q_func = Net(dim_state, dim_action, dueling=cfg.dueling)
 
         if cfg.load:
-            q_func.load_state_dict(torch.load(os.path.join(cwd, cfg.load), map_location=cfg.device))
+            q_func.load_state_dict(torch.load(os.path.join(
+                cwd, cfg.load), map_location=cfg.device))
 
         optimizer = optim.RMSprop(
             q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
@@ -198,7 +199,8 @@ def main(cfg):
 
                 log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
                 print(log, end='')
-                mlflow.log_metric('reward', total_reward, step=agent.total_steps)
+                mlflow.log_metric('reward', total_reward,
+                                  step=agent.total_steps)
 
                 with open(log_file_name, 'a') as f:
                     f.write(log)
