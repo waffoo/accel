@@ -36,7 +36,7 @@ class Net(nn.Module):
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
-        x = x.view(x.size(0), -1)
+        x = x.reshape(x.size(0), -1)
 
         adv = F.relu(self.fc1(x))
         adv = self.fc2(adv)
