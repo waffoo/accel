@@ -11,3 +11,7 @@ replay_capacity: 500_000
 dueling: False
 prioritized: False
 name: ""
+color: False
+high_reso: False
+no_stack: False
+

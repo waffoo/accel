@@ -316,7 +316,7 @@ class TimeLimit(gym.Wrapper):
         return self.env.reset(**kwargs)
 
 
-def make_atari(name, max_episode_len=None, episodic_life=True, clip_rewards=True, frame_stack=True, pytorch=True):
+def make_atari(name, max_episode_len=None, episodic_life=True, clip_rewards=True, frame_stack=True, pytorch=True, color=False, image_size=84):
     env = gym.make(name)
 
     env = NoopResetEnv(env)
@@ -330,7 +330,8 @@ def make_atari(name, max_episode_len=None, episodic_life=True, clip_rewards=True
     if 'FIRE' in env.unwrapped.get_action_meanings():
         env = FireResetEnv(env)
 
-    env = WarpFrame(env)
+    env = WarpFrame(env, grayscale=not color,
+                    height=image_size, width=image_size)
 
     if pytorch:
         env = WarpPyTorch(env)

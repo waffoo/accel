@@ -18,16 +18,18 @@ from accel.utils.utils import set_seed
 
 
 class Net(nn.Module):
-    def __init__(self, input, output, dueling=False):
+    def __init__(self, input, output, dueling=False, high_reso=False):
         super().__init__()
         self.dueling = dueling
         self.conv1 = nn.Conv2d(input, 32, kernel_size=8, stride=4)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
-        self.fc1 = nn.Linear(7 * 7 * 64, 512)
+
+        linear_size = 7 * 7 * 64 if not high_reso else 12 * 12 * 64
+        self.fc1 = nn.Linear(linear_size, 512)
         self.fc2 = nn.Linear(512, output)
         if self.dueling:
-            self.v_fc1 = nn.Linear(7 * 7 * 64, 512)
+            self.v_fc1 = nn.Linear(linear_size, 512)
             self.v_fc2 = nn.Linear(512, 1)
 
     def forward(self, x):
@@ -35,7 +37,7 @@ class Net(nn.Module):
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
-        x = x.view(x.size(0), -1)
+        x = x.reshape(x.size(0), -1)
 
         adv = F.relu(self.fc1(x))
         adv = self.fc2(adv)
@@ -76,6 +78,9 @@ def main(cfg):
         mlflow.log_param('replay', cfg.replay_capacity)
         mlflow.log_param('dueling', cfg.dueling)
         mlflow.log_param('prioritized', cfg.prioritized)
+        mlflow.log_param('color', cfg.color)
+        mlflow.log_param('high', cfg.high_reso)
+        mlflow.log_param('no_stack', cfg.no_stack)
         mlflow.set_tag('env', cfg.env)
 
         if not cfg.device:
@@ -86,9 +91,16 @@ def main(cfg):
             env = make_atari_ram(cfg.env)
             eval_env = make_atari_ram(cfg.env, clip_rewards=False)
         else:
-            env = make_atari(cfg.env)
-            eval_env = make_atari(cfg.env, clip_rewards=False)
-
+            if cfg.high_reso:
+                env = make_atari(cfg.env, color=cfg.color,
+                                 image_size=128, frame_stack=not cfg.no_stack)
+                eval_env = make_atari(
+                    cfg.env, clip_rewards=False, color=cfg.color, image_size=128, frame_stack=not cfg.no_stack)
+            else:
+                env = make_atari(cfg.env, color=cfg.color,
+                                 frame_stack=not cfg.no_stack)
+                eval_env = make_atari(
+                    cfg.env, clip_rewards=False, color=cfg.color, frame_stack=not cfg.no_stack)
 
         env.seed(cfg.seed)
         eval_env.seed(cfg.seed)
@@ -99,10 +111,12 @@ def main(cfg):
         if is_ram:
             q_func = RamNet(dim_state, dim_action)
         else:
-            q_func = Net(dim_state, dim_action, dueling=cfg.dueling)
+            q_func = Net(dim_state, dim_action,
+                         dueling=cfg.dueling, high_reso=cfg.high_reso)
 
         if cfg.load:
-            q_func.load_state_dict(torch.load(os.path.join(cwd, cfg.load), map_location=cfg.device))
+            q_func.load_state_dict(torch.load(os.path.join(
+                cwd, cfg.load), map_location=cfg.device))
 
         optimizer = optim.RMSprop(
             q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
@@ -204,7 +218,8 @@ def main(cfg):
 
                 log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
                 print(log, end='')
-                mlflow.log_metric('reward', total_reward, step=agent.total_steps)
+                mlflow.log_metric('reward', total_reward,
+                                  step=agent.total_steps)
 
                 with open(log_file_name, 'a') as f:
                     f.write(log)
