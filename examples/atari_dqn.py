@@ -1,10 +1,11 @@
-import time
+from time import time
 import gym
 # from gym.utils.play import play import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+import numpy as np
 import hydra
 import mlflow
 import os
@@ -156,7 +157,7 @@ def main(cfg):
         next_eval_cnt = 1
         episode_cnt = 0
 
-        train_start_time = time.time()
+        train_start_time = time()
 
         log_file_name = 'scores.txt'
         best_score = -1e10
@@ -207,7 +208,7 @@ def main(cfg):
                     torch.save(q_func.state_dict(), model_name)
                     best_score = total_reward
 
-                now = time.time()
+                now = time()
                 elapsed = now - train_start_time
 
                 log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
@@ -240,7 +241,7 @@ def main(cfg):
         model_name = f'final.model'
         torch.save(q_func.state_dict(), model_name)
 
-        now = time.time()
+        now = time()
         elapsed = now - train_start_time
 
         log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
@@ -250,6 +251,8 @@ def main(cfg):
         with open(log_file_name, 'a') as f:
             f.write(log)
 
+        duration = np.round(elapsed / 60 / 60, 2)
+        mlflow.log_metric('duration', duration)
         print('Complete')
         env.close()
 
