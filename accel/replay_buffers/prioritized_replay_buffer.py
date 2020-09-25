@@ -18,22 +18,17 @@ class PrioritizedReplayBuffer(object):
         self.alpha = alpha
         self.steps = 0
         self.beta_steps = beta_steps
-        self.max_err = 1e-15
+        self.max_err = 1.0
         self.write = 0
         self.len = 0
 
     def _get_priority(self, error):
         return (error + self.eps) ** self.alpha
 
-    def max_error(self):
-        # TODO max maybe too big
-        return self.max_err
-
-    def push(self, error, *args):
-        self.max_err = max(error, self.max_err)
+    def push(self, *args):
         self.steps += 1
 
-        p = self._get_priority(error)
+        p = self._get_priority(self.max_err)
 
         self.data[self.write] = Transition(*args)
 

@@ -42,13 +42,8 @@ class DQN:
         return action.item()
 
     def update(self, obs, action, next_obs, reward, valid):
-        if self.prioritized:
-            max_err = self.replay_buffer.max_error()
-            self.replay_buffer.push(max_err, obs, action, next_obs,
-                                    np.float32(reward), valid)
-        else:
-            self.replay_buffer.push(obs, action, next_obs,
-                                    np.float32(reward), valid)
+        self.replay_buffer.push(obs, action, next_obs,
+                                np.float32(reward), valid)
 
         self.total_steps += 1
         if self.total_steps % self.update_interval == 0:
