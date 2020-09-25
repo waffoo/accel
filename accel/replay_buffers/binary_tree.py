@@ -11,12 +11,16 @@ class BinaryTree:
         self.capacity = capacity
         self.tree = np.full(2 * capacity - 1, initial_value)
         self.operator = operator
+        self.initial_value = initial_value
 
     def _propagate(self, idx):
         parent = (idx - 1) // 2
         left = 2 * parent + 1
         right = left + 1
-        self.tree[parent] = self.operator(self.tree[left], self.tree[right])
+
+        left_val = self.tree[left]
+        right_val = self.tree[right] if right < len(self.tree) else self.initial_value
+        self.tree[parent] = self.operator(left_val, right_val)
 
         if parent != 0:
             self._propagate(parent)
