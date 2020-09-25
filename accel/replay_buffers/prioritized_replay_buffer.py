@@ -1,5 +1,5 @@
 from collections import namedtuple
-from accel.replay_buffers.sum_tree import SumTree
+from accel.replay_buffers.sum_tree import SumTree, MinTree
 import random
 import numpy as np
 
@@ -11,6 +11,7 @@ class PrioritizedReplayBuffer(object):
     def __init__(self, capacity, alpha=0.6, beta0=0.4, eps=1e-6, beta_steps=int(2e5)):
         self.capacity = capacity
         self.sum_tree = SumTree(capacity)
+        self.min_tree = MinTree(capacity)
         self.data = np.zeros(capacity, dtype=object)
         self.eps = eps
         self.beta0 = beta0
@@ -37,6 +38,7 @@ class PrioritizedReplayBuffer(object):
         self.data[self.write] = Transition(*args)
 
         self.sum_tree.update(self.write, p)
+        self.min_tree.update(self.write, p)
 
         self.write += 1
 
@@ -54,6 +56,9 @@ class PrioritizedReplayBuffer(object):
         # TODO replace it with common annealing function
         progress = min(1.0, self.steps / self.beta_steps)
         beta = self.beta0 + (1.0 - self.beta0) * progress
+
+        prob_min = self.min_tree.top() / total_pri
+        max_weight = (self.len * prob_min) ** (-beta)
 
         segment = total_pri / batch_size
 
@@ -73,12 +78,13 @@ class PrioritizedReplayBuffer(object):
         weights = np.array(weights)
         _initial_data_ratio = (np.array(pris, dtype=np.float32) == self._get_priority(self.max_err)).mean()
 
-        return batch, idx_batch, weights / weights.max()
+        return batch, idx_batch, weights / max_weight
 
     def update(self, data_idx, error):
         self.max_err = max(error, self.max_err)
         p = self._get_priority(error)
         self.sum_tree.update(data_idx, p)
+        self.min_tree.update(data_idx, p)
 
     def __len__(self):
         return self.len
