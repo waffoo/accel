@@ -10,13 +10,16 @@ Transition = namedtuple(
 class PrioritizedReplayBuffer(object):
     def __init__(self, capacity, alpha=0.6, beta0=0.4, eps=1e-6, beta_steps=int(2e5)):
         self.capacity = capacity
-        self.memory = SumTree(capacity)
+        self.sum_tree = SumTree(capacity)
+        self.data = np.zeros(capacity, dtype=object)
         self.eps = eps
         self.beta0 = beta0
         self.alpha = alpha
         self.steps = 0
         self.beta_steps = beta_steps
         self.max_err = 1e-15
+        self.write = 0
+        self.len = 0
 
     def _get_priority(self, error):
         return (error + self.eps) ** self.alpha
@@ -30,32 +33,41 @@ class PrioritizedReplayBuffer(object):
         self.steps += 1
 
         p = self._get_priority(error)
-        self.memory.add(p, Transition(*args))
+
+        self.data[self.write] = Transition(*args)
+
+        self.sum_tree.add(p, self.write)
+
+        self.write += 1
+
+        self.len = max(self.len, self.write)
+        if self.write >= self.capacity:
+            self.write = 0
 
     def sample(self, batch_size):
         batch = []
         idx_batch = []
         weights = []
         pris = []
-        total_pri = self.memory.total()
+        total_pri = self.sum_tree.total()
 
         # TODO replace it with common annealing function
         progress = min(1.0, self.steps / self.beta_steps)
         beta = self.beta0 + (1.0 - self.beta0) * progress
 
-        segment = self.memory.total() / batch_size
+        segment = self.sum_tree.total() / batch_size
 
         for i in range(batch_size):
             a, b = segment * i, segment * (i + 1)
             s = random.uniform(a, b)
-            idx, pri, data = self.memory.get(s)
+            data_idx, pri = self.sum_tree.get(s)
             prob = pri / total_pri
 
-            batch.append(data)
-            idx_batch.append(idx)
+            batch.append(self.data[data_idx])
+            idx_batch.append(data_idx)
             pris.append(pri)
 
-            weight = (len(self.memory) * prob) ** (-beta)
+            weight = (self.len * prob) ** (-beta)
             weights.append(weight)
 
         weights = np.array(weights)
@@ -63,10 +75,10 @@ class PrioritizedReplayBuffer(object):
 
         return batch, idx_batch, weights / weights.max()
 
-    def update(self, idx, error):
+    def update(self, data_idx, error):
         self.max_err = max(error, self.max_err)
         p = self._get_priority(error)
-        self.memory.update(idx, p)
+        self.sum_tree.update(data_idx, p)
 
     def __len__(self):
-        return len(self.memory)
+        return self.len

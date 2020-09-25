@@ -88,8 +88,8 @@ class DQN:
 
         if self.prioritized:
             td_error = abs(expected_state_action_values - state_action_values.squeeze(1)).tolist()
-            for idx, err in zip(idx_batch, td_error):
-                self.replay_buffer.update(idx, err)
+            for data_idx, err in zip(idx_batch, td_error):
+                self.replay_buffer.update(data_idx, err)
 
         if self.huber:
             if self.prioritized:

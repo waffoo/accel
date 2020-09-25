@@ -4,9 +4,6 @@ class SumTree:
     def __init__(self, capacity):
         self.capacity = capacity
         self.tree = np.zeros(2 * capacity - 1)
-        self.data = np.zeros(capacity, dtype=object)
-        self.write = 0
-        self.len = 0
 
     def _propagate(self, idx, change):
         parent = (idx - 1) // 2
@@ -29,18 +26,11 @@ class SumTree:
     def total(self):
         return self.tree[0]
 
-    def add(self, p, data):
-        idx = self.write + self.capacity - 1
+    def add(self, val, data_idx):
+        self.update(data_idx, val)
 
-        self.data[self.write] = data
-        self.update(idx, p)
-
-        self.write += 1
-        self.len = max(self.len, self.write)
-        if self.write >= self.capacity:
-            self.write = 0
-
-    def update(self, idx, p):
+    def update(self, data_idx, p):
+        idx = data_idx + self.capacity - 1
         change = p - self.tree[idx]
 
         self.tree[idx] = p
@@ -50,7 +40,5 @@ class SumTree:
         idx = self._retrieve(0, s)
         data_idx = idx - self.capacity + 1
 
-        return idx, self.tree[idx], self.data[data_idx]
+        return data_idx, self.tree[idx]
 
-    def __len__(self):
-        return self.len
