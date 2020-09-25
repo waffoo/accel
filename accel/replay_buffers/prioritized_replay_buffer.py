@@ -1,5 +1,5 @@
 from collections import namedtuple
-from accel.replay_buffers.sum_tree import SumTree, MinTree
+from accel.replay_buffers.binary_tree import SumTree, MinTree
 import random
 import numpy as np
 

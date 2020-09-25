@@ -1,5 +1,5 @@
 import pytest
-from accel.replay_buffers.sum_tree import SumTree, MinTree
+from accel.replay_buffers.binary_tree import SumTree, MinTree
 from collections import defaultdict
 import random
 
