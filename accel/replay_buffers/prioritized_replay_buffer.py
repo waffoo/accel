@@ -36,7 +36,7 @@ class PrioritizedReplayBuffer(object):
 
         self.data[self.write] = Transition(*args)
 
-        self.sum_tree.add(p, self.write)
+        self.sum_tree.update(self.write, p)
 
         self.write += 1
 
@@ -49,13 +49,13 @@ class PrioritizedReplayBuffer(object):
         idx_batch = []
         weights = []
         pris = []
-        total_pri = self.sum_tree.total()
+        total_pri = self.sum_tree.top()
 
         # TODO replace it with common annealing function
         progress = min(1.0, self.steps / self.beta_steps)
         beta = self.beta0 + (1.0 - self.beta0) * progress
 
-        segment = self.sum_tree.total() / batch_size
+        segment = total_pri / batch_size
 
         for i in range(batch_size):
             a, b = segment * i, segment * (i + 1)
