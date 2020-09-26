@@ -119,7 +119,7 @@ def main(cfg):
 
         optimizer = optim.RMSprop(
             q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
-        memory = ReplayBuffer(capacity=cfg.replay_capacity)
+        memory = ReplayBuffer(capacity=cfg.replay_capacity, nstep=cfg.nstep)
 
         score_steps = []
         scores = []
