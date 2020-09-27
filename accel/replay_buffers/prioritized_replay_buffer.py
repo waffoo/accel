@@ -1,4 +1,4 @@
-from collections import namedtuple
+from collections import namedtuple, deque
 from accel.replay_buffers.binary_tree import SumTree, MinTree
 import random
 import numpy as np
@@ -8,7 +8,7 @@ Transition = namedtuple(
 
 
 class PrioritizedReplayBuffer(object):
-    def __init__(self, capacity, alpha=0.6, beta0=0.4, eps=1e-6, beta_steps=int(2e5)):
+    def __init__(self, capacity, alpha=0.6, beta0=0.4, eps=1e-6, beta_steps=int(2e5), nstep=1):
         self.capacity = capacity
         self.sum_tree = SumTree(capacity)
         self.min_tree = MinTree(capacity)
@@ -21,6 +21,8 @@ class PrioritizedReplayBuffer(object):
         self.max_err = 1.0
         self.write = 0
         self.len = 0
+        self.nstep = nstep
+        self.tmp_buffer = deque(maxlen=self.nstep)
 
     def _get_priority(self, error):
         return (error + self.eps) ** self.alpha
@@ -30,7 +32,37 @@ class PrioritizedReplayBuffer(object):
 
         p = self._get_priority(self.max_err)
 
-        self.data[self.write] = Transition(*args)
+        transition = Transition(*args)
+        self.tmp_buffer.append(transition)
+
+        if not transition.valid:
+            while len(self.tmp_buffer) > 0:
+                self.data[self.write] = list(self.tmp_buffer)
+                self.sum_tree.update(self.write, p)
+                self.min_tree.update(self.write, p)
+
+                self.write += 1
+
+                self.len = max(self.len, self.write)
+                if self.write >= self.capacity:
+                    self.write = 0
+
+                self.tmp_buffer.popleft()
+        else:
+            if len(self.tmp_buffer) == self.tmp_buffer.maxlen:
+                self.data[self.write] = list(self.tmp_buffer)
+                self.sum_tree.update(self.write, p)
+                self.min_tree.update(self.write, p)
+
+                self.write += 1
+
+                self.len = max(self.len, self.write)
+                if self.write >= self.capacity:
+                    self.write = 0
+
+
+        '''
+        self.data[self.write] = transition
 
         self.sum_tree.update(self.write, p)
         self.min_tree.update(self.write, p)
@@ -40,6 +72,7 @@ class PrioritizedReplayBuffer(object):
         self.len = max(self.len, self.write)
         if self.write >= self.capacity:
             self.write = 0
+        '''
 
     def sample(self, batch_size):
         batch = []

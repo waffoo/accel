@@ -82,6 +82,7 @@ def main(cfg):
         mlflow.log_param('color', cfg.color)
         mlflow.log_param('high', cfg.high_reso)
         mlflow.log_param('no_stack', cfg.no_stack)
+        mlflow.log_param('nstep', cfg.nstep)
         mlflow.set_tag('env', cfg.env)
 
         if not cfg.device:
@@ -123,9 +124,9 @@ def main(cfg):
             q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
 
         if cfg.prioritized:
-            memory = PrioritizedReplayBuffer(capacity=cfg.replay_capacity, beta_steps=cfg.steps - cfg.replay_start_step)
+            memory = PrioritizedReplayBuffer(capacity=cfg.replay_capacity, beta_steps=cfg.steps - cfg.replay_start_step, nstep=cfg.nstep)
         else:
-            memory = ReplayBuffer(capacity=cfg.replay_capacity)
+            memory = ReplayBuffer(capacity=cfg.replay_capacity, nstep=cfg.nstep)
 
         score_steps = []
         scores = []
