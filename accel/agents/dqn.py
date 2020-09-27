@@ -64,6 +64,24 @@ class DQN:
         else:
             transitions = self.replay_buffer.sample(self.batch_size)
 
+        def f(trans):
+            start_state = trans[0].state
+            action = trans[0].action
+            next_state = trans[-1].next_state
+            valid = trans[-1].valid
+            reward = 0.
+            for i, data in enumerate(trans):
+                reward += data.reward * self.gamma ** i
+
+            return Transition(start_state, action, next_state, reward, valid)
+
+        def extract_steps(trans):
+            return len(trans)
+
+
+        steps_batch = list(map(extract_steps, transitions))
+        transitions = map(f, transitions)
+
         batch = Transition(*zip(*transitions))
 
         state_batch = torch.tensor(
@@ -76,12 +94,13 @@ class DQN:
             np.array(batch.reward, dtype=np.float32), device=self.device)
         valid_batch = torch.tensor(
             np.array(batch.valid, dtype=np.float32), device=self.device)
+        steps_batch = torch.tensor(np.array(steps_batch, dtype=np.float32),device=self.device)
 
 
         state_action_values = self.q_func(state_batch).gather(1, action_batch)
 
         expected_state_action_values = reward_batch + \
-            valid_batch * self.gamma * \
+            valid_batch * (self.gamma ** steps_batch) * \
             self.next_state_value(next_state_batch)
 
         if self.prioritized:
