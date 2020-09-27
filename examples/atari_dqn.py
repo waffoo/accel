@@ -123,7 +123,7 @@ def main(cfg):
             q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
 
         if cfg.prioritized:
-            memory = PrioritizedReplayBuffer(capacity=cfg.replay_capacity, beta_steps=cfg.steps)
+            memory = PrioritizedReplayBuffer(capacity=cfg.replay_capacity, beta_steps=cfg.steps - cfg.replay_start_step)
         else:
             memory = ReplayBuffer(capacity=cfg.replay_capacity)
 
@@ -134,7 +134,9 @@ def main(cfg):
             start_eps=1.0, end_eps=0.1, decay_steps=1e6)
 
         agent = dqn.DoubleDQN(q_func, optimizer, memory, cfg.gamma,
-                              explorer, cfg.device, batch_size=32, target_update_interval=10000)
+                              explorer, cfg.device, batch_size=32,
+                              target_update_interval=10000,
+                              replay_start_step=cfg.replay_start_step)
 
         if cfg.demo:
             for x in range(10):

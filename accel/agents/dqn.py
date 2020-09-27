@@ -12,7 +12,9 @@ class DQN:
                  device,
                  batch_size=32,
                  update_interval=4,
-                 target_update_interval=200, huber=False):
+                 target_update_interval=200,
+                 replay_start_step=10000,
+                 huber=False):
         self.q_func = q_func.to(device)
         self.target_q_func = copy.deepcopy(self.q_func).to(device)
         self.optimizer = optimizer
@@ -26,6 +28,7 @@ class DQN:
         self.target_update_interval = target_update_interval
         self.huber = huber
         self.total_steps = 0
+        self.replay_start_step = replay_start_step
 
         self.prev_target_update_time = 0
 
@@ -53,7 +56,7 @@ class DQN:
         return self.target_q_func(next_states).max(1)[0].detach()
 
     def train(self):
-        if len(self.replay_buffer) < self.batch_size:
+        if len(self.replay_buffer) < self.batch_size or len(self.replay_buffer) < self.replay_start_step:
             return
 
         if self.prioritized:
