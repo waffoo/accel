@@ -13,6 +13,7 @@ import os
 from accel.utils.atari_wrappers import make_atari, make_atari_ram
 from accel.explorers import epsilon_greedy
 from accel.replay_buffers.replay_buffer import Transition, ReplayBuffer
+from accel.replay_buffers.prioritized_replay_buffer import PrioritizedReplayBuffer
 from accel.agents import dqn
 from accel.utils.utils import set_seed
 
@@ -77,9 +78,11 @@ def main(cfg):
         mlflow.log_param('gamma', cfg.gamma)
         mlflow.log_param('replay', cfg.replay_capacity)
         mlflow.log_param('dueling', cfg.dueling)
+        mlflow.log_param('prioritized', cfg.prioritized)
         mlflow.log_param('color', cfg.color)
         mlflow.log_param('high', cfg.high_reso)
         mlflow.log_param('no_stack', cfg.no_stack)
+        mlflow.log_param('nstep', cfg.nstep)
         mlflow.set_tag('env', cfg.env)
 
         if not cfg.device:
@@ -119,7 +122,11 @@ def main(cfg):
 
         optimizer = optim.RMSprop(
             q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
-        memory = ReplayBuffer(capacity=cfg.replay_capacity, nstep=cfg.nstep)
+
+        if cfg.prioritized:
+            memory = PrioritizedReplayBuffer(capacity=cfg.replay_capacity, beta_steps=cfg.steps - cfg.replay_start_step, nstep=cfg.nstep)
+        else:
+            memory = ReplayBuffer(capacity=cfg.replay_capacity, nstep=cfg.nstep)
 
         score_steps = []
         scores = []
@@ -128,7 +135,9 @@ def main(cfg):
             start_eps=1.0, end_eps=0.1, decay_steps=1e6)
 
         agent = dqn.DoubleDQN(q_func, optimizer, memory, cfg.gamma,
-                              explorer, cfg.device, batch_size=32, target_update_interval=10000)
+                              explorer, cfg.device, batch_size=32,
+                              target_update_interval=10000,
+                              replay_start_step=cfg.replay_start_step)
 
         if cfg.demo:
             for x in range(10):
