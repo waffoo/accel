@@ -74,6 +74,8 @@ def main(cfg):
     mlflow.set_experiment('atari_dqn')
 
     with mlflow.start_run(run_name=cfg.name):
+        is_ram = '-ram' in cfg.env
+
         mlflow.log_param('seed', cfg.seed)
         mlflow.log_param('gamma', cfg.gamma)
         mlflow.log_param('replay', cfg.replay_capacity)
@@ -83,12 +85,12 @@ def main(cfg):
         mlflow.log_param('high', cfg.high_reso)
         mlflow.log_param('no_stack', cfg.no_stack)
         mlflow.log_param('nstep', cfg.nstep)
+        mlflow.log_param('ram', is_ram)
         mlflow.set_tag('env', cfg.env)
 
         if not cfg.device:
             cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-        is_ram = '-ram' in cfg.env
         if is_ram:
             env = make_atari_ram(cfg.env)
             eval_env = make_atari_ram(cfg.env, clip_rewards=False)
