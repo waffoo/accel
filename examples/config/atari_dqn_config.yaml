@@ -16,3 +16,4 @@ no_stack: False
 replay_start_step: 20_000
 nstep: 1
 adam: True
+end_eps: 0.01

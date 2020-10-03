@@ -88,6 +88,7 @@ def main(cfg):
         mlflow.log_param('nstep', cfg.nstep)
         mlflow.log_param('ram', is_ram)
         mlflow.log_param('adam', cfg.adam)
+        mlflow.log_param('end_eps', cfg.end_eps)
         mlflow.set_tag('env', cfg.env)
 
         if not cfg.device:
@@ -140,7 +141,7 @@ def main(cfg):
         scores = []
 
         explorer = epsilon_greedy.LinearDecayEpsilonGreedy(
-            start_eps=1.0, end_eps=0.1, decay_steps=1e6)
+            start_eps=1.0, end_eps=cfg.end_eps, decay_steps=1e6)
 
         agent = dqn.DoubleDQN(q_func, optimizer, memory, cfg.gamma,
                               explorer, cfg.device, batch_size=32,
