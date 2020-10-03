@@ -59,6 +59,7 @@ class RamNet(nn.Module):
         self.fc4 = nn.Linear(64, output)
 
     def forward(self, x):
+        x = x / 255.
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
@@ -86,6 +87,7 @@ def main(cfg):
         mlflow.log_param('no_stack', cfg.no_stack)
         mlflow.log_param('nstep', cfg.nstep)
         mlflow.log_param('ram', is_ram)
+        mlflow.log_param('adam', cfg.adam)
         mlflow.set_tag('env', cfg.env)
 
         if not cfg.device:
@@ -122,8 +124,12 @@ def main(cfg):
             q_func.load_state_dict(torch.load(os.path.join(
                 cwd, cfg.load), map_location=cfg.device))
 
-        optimizer = optim.RMSprop(
-            q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
+        if cfg.adam:
+            # same as Rainbow
+            optimizer = optim.Adam(q_func.parameters(), lr=0.0000625, eps=1.5e-4)
+        else:
+            optimizer = optim.RMSprop(
+                q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
 
         if cfg.prioritized:
             memory = PrioritizedReplayBuffer(capacity=cfg.replay_capacity, beta_steps=cfg.steps - cfg.replay_start_step, nstep=cfg.nstep)

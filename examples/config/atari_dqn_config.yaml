@@ -1,6 +1,5 @@
 env: BreakoutNoFrameskip-v4
 load: ""
-save: ""
 device: ""
 demo: False
 steps: 5_000_000
@@ -14,5 +13,6 @@ name: ""
 color: False
 high_reso: False
 no_stack: False
-replay_start_step: 10_000
+replay_start_step: 20_000
 nstep: 1
+adam: True
