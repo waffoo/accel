@@ -132,7 +132,7 @@ class DQN:
         #    param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
 
-        if self.total_steps - self.prev_target_update_time > self.target_update_interval:
+        if self.total_steps - self.prev_target_update_time >= self.target_update_interval:
             self.target_q_func.load_state_dict(self.q_func.state_dict())
             self.prev_target_update_time = self.total_steps
 
