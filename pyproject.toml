@@ -11,6 +11,7 @@ torch = "^1.6.0"
 pytest = "^6.0.2"
 
 [tool.poetry.dev-dependencies]
+scikit-learn = "^0.23.2"
 mlflow = "^1.11.0"
 pybullet = "^3.0.4"
 hydra-core = "^1.0.3"
