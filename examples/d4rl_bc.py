@@ -34,6 +34,7 @@ observations = torch.tensor(observations)
 actions = torch.tensor(actions)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+print(device)
 
 obs_train, obs_test, action_train, action_test = train_test_split(observations, actions,
                                                                   test_size=0.2, random_state=0)
@@ -47,7 +48,7 @@ testset = TensorDataset(obs_test, action_test)
 train_loader = DataLoader(trainset, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(testset, batch_size=batch_size, shuffle=False)
 
-net = BCNet(obs_train.size(1), action_train.size(1))
+net = BCNet(obs_train.size(1), action_train.size(1)).to(device)
 print(net)
 
 optimizer = torch.optim.Adam(net.parameters(), lr=1e-3)
@@ -91,7 +92,7 @@ for epoch in range(epochs):
         obs = obs.to(device)
         t += 1
         with torch.no_grad():
-            action = net(obs).detach().numpy()
+            action = net(obs).detach().cpu().numpy()
         from PIL import Image
         arr = env.render(mode='rgb_array')
         img = Image.fromarray(arr)
