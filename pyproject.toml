@@ -17,6 +17,7 @@ hydra-core = "^1.0.3"
 gym = "^0.17.2"
 atari-py = "^0.2.6"
 d4rl = {git = "https://github.com/rail-berkeley/d4rl.git", rev = "master"}
+procgen = "^0.10.4"
 
 [build-system]
 requires = ["poetry>=0.12"]
