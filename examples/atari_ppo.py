@@ -10,10 +10,8 @@ import hydra
 import mlflow
 import os
 
-from accel.utils.atari_wrappers import make_atari, make_atari_ram
+from accel.utils.atari_wrappers import make_atari
 from accel.explorers import epsilon_greedy
-from accel.replay_buffers.replay_buffer import Transition, ReplayBuffer
-from accel.replay_buffers.prioritized_replay_buffer import PrioritizedReplayBuffer
 from accel.agents import ppo
 from accel.utils.utils import set_seed
 from accel.utils.atari_wrappers import callable_atari_wrapper
@@ -60,8 +58,6 @@ def main(cfg):
     mlflow.set_experiment('atari_dqn')
 
     with mlflow.start_run(run_name=cfg.name):
-        is_ram = '-ram' in cfg.env
-
         mlflow.log_param('seed', cfg.seed)
         mlflow.log_param('gamma', cfg.gamma)
         mlflow.log_param('replay', cfg.replay_capacity)
@@ -71,7 +67,6 @@ def main(cfg):
         mlflow.log_param('high', cfg.high_reso)
         mlflow.log_param('no_stack', cfg.no_stack)
         mlflow.log_param('nstep', cfg.nstep)
-        mlflow.log_param('ram', is_ram)
         mlflow.log_param('adam', cfg.adam)
         mlflow.log_param('end_eps', cfg.end_eps)
         mlflow.set_tag('env', cfg.env)
@@ -79,20 +74,16 @@ def main(cfg):
         if not cfg.device:
             cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-        if is_ram:
-            env = make_atari_ram(cfg.env)
-            eval_env = make_atari_ram(cfg.env, clip_rewards=False)
+        if cfg.high_reso:
+            env = make_atari(cfg.env, color=cfg.color,
+                             image_size=128, frame_stack=not cfg.no_stack)
+            eval_env = make_atari(
+                cfg.env, clip_rewards=False, color=cfg.color, image_size=128, frame_stack=not cfg.no_stack)
         else:
-            if cfg.high_reso:
-                env = make_atari(cfg.env, color=cfg.color,
-                                 image_size=128, frame_stack=not cfg.no_stack)
-                eval_env = make_atari(
-                    cfg.env, clip_rewards=False, color=cfg.color, image_size=128, frame_stack=not cfg.no_stack)
-            else:
-                env = make_atari(cfg.env, color=cfg.color,
-                                 frame_stack=not cfg.no_stack)
-                eval_env = make_atari(
-                    cfg.env, clip_rewards=False, color=cfg.color, frame_stack=not cfg.no_stack)
+            env = make_atari(cfg.env, color=cfg.color,
+                             frame_stack=not cfg.no_stack)
+            eval_env = make_atari(
+                cfg.env, clip_rewards=False, color=cfg.color, frame_stack=not cfg.no_stack)
 
         env.seed(cfg.seed)
         eval_env.seed(cfg.seed)
@@ -114,16 +105,11 @@ def main(cfg):
             optimizer = optim.RMSprop(
                 q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
 
-        if cfg.prioritized:
-            memory = PrioritizedReplayBuffer(capacity=cfg.replay_capacity, beta_steps=cfg.steps - cfg.replay_start_step, nstep=cfg.nstep)
-        else:
-            memory = ReplayBuffer(capacity=cfg.replay_capacity, nstep=cfg.nstep)
-
-        score_steps = []
-        scores = []
-
         explorer = epsilon_greedy.LinearDecayEpsilonGreedy(
             start_eps=1.0, end_eps=cfg.end_eps, decay_steps=1e6)
+
+
+        #=========== PPO =======================
 
         wrapper = callable_atari_wrapper(color=cfg.color, frame_stack=not cfg.no_stack)
         eval_wrapper = callable_atari_wrapper(color=cfg.color, frame_stack=not cfg.no_stack, clip_rewards=False)
@@ -131,9 +117,25 @@ def main(cfg):
         envs = gym.vector.make(cfg.env, 8, wrappers=wrapper)
         eval_envs = gym.vector.make(cfg.env, 8, wrappers=eval_wrapper)
 
-        agent2 = ppo.PPO(envs, eval_envs, optimizer)
+        dim_state = envs.observation_space.shape[1]
+        dim_action = envs.action_space[0].n
+
+        agent2 = ppo.PPO(envs, eval_envs, dim_state, dim_action, cfg.steps, lmd=0.9, gamma=cfg.gamma,
+                            device=cfg.device, batch_size=8, lr=1e-4)
 
         agent2.run()
+
+
+def finalize(env):
+    try:
+        print('hoge')
+        env.close()
+    except:
+        print('fuga')
+        return
+
+
+
 
 if __name__ == '__main__':
     main()
