@@ -111,6 +111,7 @@ class PPO:
                 buffer.push(transition, values)
 
                 obs = next_obs
+                self.elapsed_step += sum(~done).item()
 
             # note: only V(obs) will be used
             transition = Transition(obs, actions, obs, reward, np.zeros(8, dtype=bool))
@@ -139,9 +140,6 @@ class PPO:
                 loss.backward()
                 self.critic_optimizer.step()
             self.critic.eval()
-
-
-            self.elapsed_step += 1
 
             #break
 
