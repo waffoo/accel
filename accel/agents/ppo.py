@@ -6,8 +6,8 @@ from torch.utils.data import DataLoader
 import numpy as np
 import torch.optim as optim
 
-Transition = namedtuple(
-    'Transition', ('state', 'action', 'next_state', 'reward', 'valid'))
+from accel.replay_buffers.rollout_buffer import RolloutBuffer, Transition
+from torch.distributions import Categorical
 
 
 class ActorNet(nn.Module):
@@ -61,7 +61,7 @@ class CriticNet(nn.Module):
 
 class PPO:
     def __init__(self, envs, eval_envs, dim_state, dim_action, steps, lmd, gamma, device, batch_size, lr,
-                 horizon=128, high_reso=False):
+                 horizon=128, clip_eps=0.2, high_reso=False):
         self.envs = envs
         self.eval_envs = eval_envs
         self.dim_state = dim_state
@@ -70,6 +70,7 @@ class PPO:
         self.gamma = gamma
         self.device = device
         self.batch_size = batch_size
+        self.clip_eps = clip_eps
 
         self.actor = ActorNet(dim_state, dim_action, high_reso=high_reso)
         self.critic = CriticNet(dim_state, high_reso=high_reso)
@@ -91,7 +92,6 @@ class PPO:
 
     def run(self):
         obs = self.envs.reset()
-        from accel.replay_buffers.rollout_buffer import RolloutBuffer
 
         buffer = RolloutBuffer(self.gamma, self.lmd)
 
@@ -99,12 +99,18 @@ class PPO:
             # collect trajectories
             buffer.clear()
             for i in range(self.horizon):
-                actions = self.envs.action_space.sample()
+                obs_tensor = torch.tensor(obs, dtype=torch.float32).to(self.device)
+
+                with torch.no_grad():
+                    action_logits = self.actor(obs_tensor)
+                dist = Categorical(logits=action_logits)
+                actions = dist.sample()
+                log_prob = dist.log_prob(actions).cpu().numpy()
+                actions = actions.cpu().numpy()
                 next_obs, reward, done, info = self.envs.step(actions)
 
-                transition = Transition(obs, actions, next_obs, reward, ~done)
+                transition = Transition(obs, actions, next_obs, reward, ~done, log_prob)
 
-                obs_tensor = torch.tensor(obs, dtype=torch.float32).to(self.device)
 
                 with torch.no_grad():
                     values = self.critic(obs_tensor).flatten().detach().cpu().numpy()
@@ -114,7 +120,7 @@ class PPO:
                 self.elapsed_step += sum(~done).item()
 
             # note: only V(obs) will be used
-            transition = Transition(obs, actions, obs, reward, np.zeros(8, dtype=bool))
+            transition = Transition(obs, actions, obs, reward, np.zeros(8, dtype=bool), log_prob)
 
             obs_tensor = torch.tensor(obs, dtype=torch.float32).to(self.device)
             with torch.no_grad():
@@ -124,14 +130,28 @@ class PPO:
             # compute advantage estimates A_t using GAE
             buffer.compute_gae()
 
-            # update the policy by maximizing PPO-Clip objective
-
-            # update value function
             dataset = buffer.value_func_dataset()
             dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
             self.critic.train()
-            for (ob_, val_) in dataloader:
+            for (ob_, val_, ac_, log_prob_old_, gae_) in dataloader:
+                # update the policy by maximizing PPO-Clip objective
+                action_logits = self.actor(ob_)
+                dist = Categorical(logits=action_logits)
+                log_prob = dist.log_prob(ac_)
+                ratio = torch.exp(log_prob - log_prob_old_)
+
+                surr1 = ratio * gae_
+                surr2 = torch.clip(ratio, 1-self.clip_eps, 1+self.clip_eps) * gae_
+
+                # minus means "ascent"
+                loss = -torch.min(surr1, surr2).mean()
+
+                self.actor_optimizer.zero_grad()
+                loss.backward()
+                self.actor_optimizer.step()
+
+                # value function learning
                 ob_, val_ = ob_.to(self.device), val_.to(self.device)
                 pred = self.critic(ob_).flatten()
                 loss = F.mse_loss(pred, val_)
@@ -139,8 +159,7 @@ class PPO:
                 self.critic_optimizer.zero_grad()
                 loss.backward()
                 self.critic_optimizer.step()
-            self.critic.eval()
 
-            #break
+            self.critic.eval()
 
 
