@@ -98,6 +98,7 @@ class PPO:
         while self.elapsed_step < self.steps:
             # collect trajectories
             buffer.clear()
+            self.critic.eval()
             for i in range(self.horizon):
                 obs_tensor = torch.tensor(obs, dtype=torch.float32).to(self.device)
 
@@ -111,7 +112,6 @@ class PPO:
 
                 transition = Transition(obs, actions, next_obs, reward, ~done, log_prob)
 
-
                 with torch.no_grad():
                     values = self.critic(obs_tensor).flatten().detach().cpu().numpy()
                 buffer.push(transition, values)
@@ -119,18 +119,14 @@ class PPO:
                 obs = next_obs
                 self.elapsed_step += sum(~done).item()
 
-            # note: only V(obs) will be used
-            transition = Transition(obs, actions, obs, reward, np.zeros(8, dtype=bool), log_prob)
-
             obs_tensor = torch.tensor(obs, dtype=torch.float32).to(self.device)
             with torch.no_grad():
                 values = self.critic(obs_tensor).flatten().detach().cpu().numpy()
-            buffer.push(transition, values)
 
             # compute advantage estimates A_t using GAE
-            buffer.compute_gae()
+            buffer.final_state_value(values)
 
-            dataset = buffer.value_func_dataset()
+            dataset = buffer.create_dataset()
             dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
             self.critic.train()
@@ -160,6 +156,5 @@ class PPO:
                 loss.backward()
                 self.critic_optimizer.step()
 
-            self.critic.eval()
 
 
