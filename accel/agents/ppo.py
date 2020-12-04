@@ -30,6 +30,7 @@ class PPO:
         self.entropy_coef = entropy_coef
         self.eval_interval = eval_interval
         self.run_per_eval = run_per_eval
+        self.lr = lr
 
         self.steps = steps
         self.horizon = horizon
@@ -100,7 +101,7 @@ class PPO:
             # compute advantage estimates A_t using GAE
             buffer.final_state_value(values)
 
-            next_lr = self.lr_scheduler.calc_eps(self.elapsed_step)
+            next_lr = self.lr_scheduler.calc_eps(self.elapsed_step) * self.lr
             assert len(self.actor_optimizer.param_groups) == 1
             self.actor_optimizer.param_groups[0]['lr'] = next_lr
             self.critic_optimizer.param_groups[0]['lr'] = next_lr
