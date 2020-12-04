@@ -1,4 +1,4 @@
-env: BreakoutNoFrameskip-v4
+env: CartPole-v0
 load: ""
 device: ""
 demo: False
@@ -11,3 +11,4 @@ name: ""
 color: False
 high_reso: False
 no_stack: False
+atari: False

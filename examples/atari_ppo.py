@@ -17,10 +17,9 @@ from accel.utils.utils import set_seed
 from accel.utils.atari_wrappers import callable_atari_wrapper
 
 
-class Net(nn.Module):
-    def __init__(self, input, output, dueling=False, high_reso=False):
+class ActorNet(nn.Module):
+    def __init__(self, input, output, high_reso=False):
         super().__init__()
-        self.dueling = dueling
         self.conv1 = nn.Conv2d(input, 32, kernel_size=8, stride=4)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
@@ -28,9 +27,6 @@ class Net(nn.Module):
         linear_size = 7 * 7 * 64 if not high_reso else 12 * 12 * 64
         self.fc1 = nn.Linear(linear_size, 512)
         self.fc2 = nn.Linear(512, output)
-        if self.dueling:
-            self.v_fc1 = nn.Linear(linear_size, 512)
-            self.v_fc2 = nn.Linear(512, 1)
 
     def forward(self, x):
         x = x / 255.
@@ -41,12 +37,58 @@ class Net(nn.Module):
 
         adv = F.relu(self.fc1(x))
         adv = self.fc2(adv)
-        if not self.dueling:
-            return adv
 
-        v = F.relu(self.v_fc1(x))
-        v = self.v_fc2(v)
-        return v + adv - adv.mean(dim=1, keepdim=True)
+        # return raw logits
+        return adv
+
+
+class CriticNet(nn.Module):
+    def __init__(self, input, high_reso=False):
+        super().__init__()
+        self.conv1 = nn.Conv2d(input, 32, kernel_size=8, stride=4)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
+
+        linear_size = 7 * 7 * 64 if not high_reso else 12 * 12 * 64
+        self.fc1 = nn.Linear(linear_size, 512)
+        self.fc2 = nn.Linear(512, 1)
+
+    def forward(self, x):
+        x = x / 255.
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+        x = x.reshape(x.size(0), -1)
+
+        adv = F.relu(self.fc1(x))
+        adv = self.fc2(adv)
+        return adv
+
+
+class ActorMLPNet(nn.Module):
+    def __init__(self, input, output, hidden=64, high_reso=None):
+        super().__init__()
+        self.l1 = nn.Linear(input, hidden)
+        self.l2 = nn.Linear(hidden, hidden)
+        self.l3 = nn.Linear(hidden, output)
+
+    def forward(self, x):
+        h1 = F.relu(self.l1(x))
+        h2 = F.relu(self.l2(h1))
+        return self.l3(h2)
+
+
+class CriticMLPNet(nn.Module):
+    def __init__(self, input, hidden=64, high_reso=None):
+        super().__init__()
+        self.l1 = nn.Linear(input, hidden)
+        self.l2 = nn.Linear(hidden, hidden)
+        self.l3 = nn.Linear(hidden, 1)
+
+    def forward(self, x):
+        h1 = F.relu(self.l1(x))
+        h2 = F.relu(self.l2(h1))
+        return self.l3(h2)
 
 
 @hydra.main(config_name='config/atari_ppo_config.yaml')
@@ -72,17 +114,29 @@ def main(cfg):
         if not cfg.device:
             cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-        wrapper = callable_atari_wrapper(color=cfg.color, frame_stack=not cfg.no_stack)
-        eval_wrapper = callable_atari_wrapper(color=cfg.color, frame_stack=not cfg.no_stack, clip_rewards=False)
 
-        envs = gym.vector.make(cfg.env, cfg.parallel, wrappers=wrapper)
-        eval_env = make_atari(cfg.env, color=cfg.color, frame_stack=not cfg.no_stack, clip_rewards=False)
+        if cfg.atari:
+            wrapper = callable_atari_wrapper(color=cfg.color, frame_stack=not cfg.no_stack)
+            envs = gym.vector.make(cfg.env, cfg.parallel, wrappers=wrapper)
+            eval_env = make_atari(cfg.env, color=cfg.color, frame_stack=not cfg.no_stack, clip_rewards=False)
+        else:
+            envs = gym.vector.make(cfg.env, cfg.parallel)
+            eval_env = gym.make(cfg.env)
 
         dim_state = envs.observation_space.shape[1]
         dim_action = envs.action_space[0].n
 
-        agent2 = ppo.PPO(envs, eval_env, dim_state, dim_action, cfg.steps, lmd=0.9, gamma=cfg.gamma,
-                            device=cfg.device, batch_size=128, load=cfg.load, eval_interval=cfg.eval_interval)
+        if len(eval_env.observation_space.shape) == 3:
+            actor = ActorNet(dim_state, dim_action, high_reso=cfg.high_reso)
+            critic = CriticNet(dim_state, high_reso=cfg.high_reso)
+        else:
+            actor = ActorMLPNet(dim_state, dim_action, high_reso=cfg.high_reso)
+            critic = CriticMLPNet(dim_state, high_reso=cfg.high_reso)
+
+        agent2 = ppo.PPO(envs, eval_env, cfg.steps,
+                            actor=actor, critic=critic, lmd=0.9, gamma=cfg.gamma,
+                            device=cfg.device, batch_size=32, load=cfg.load, eval_interval=cfg.eval_interval,
+                            clip_eps=0.2, lr=1e-3)
 
         agent2.run()
 

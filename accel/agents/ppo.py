@@ -13,63 +13,14 @@ from torch.distributions import Categorical
 from accel.explorers.epsilon_greedy import LinearDecayEpsilonGreedy
 
 
-class ActorNet(nn.Module):
-    def __init__(self, input, output, high_reso=False):
-        super().__init__()
-        self.conv1 = nn.Conv2d(input, 32, kernel_size=8, stride=4)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
-        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
-
-        linear_size = 7 * 7 * 64 if not high_reso else 12 * 12 * 64
-        self.fc1 = nn.Linear(linear_size, 512)
-        self.fc2 = nn.Linear(512, output)
-
-    def forward(self, x):
-        x = x / 255.
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
-        x = x.reshape(x.size(0), -1)
-
-        adv = F.relu(self.fc1(x))
-        adv = self.fc2(adv)
-
-        # return raw logits
-        return adv
-
-
-class CriticNet(nn.Module):
-    def __init__(self, input, high_reso=False):
-        super().__init__()
-        self.conv1 = nn.Conv2d(input, 32, kernel_size=8, stride=4)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
-        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
-
-        linear_size = 7 * 7 * 64 if not high_reso else 12 * 12 * 64
-        self.fc1 = nn.Linear(linear_size, 512)
-        self.fc2 = nn.Linear(512, 1)
-
-    def forward(self, x):
-        x = x / 255.
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
-        x = x.reshape(x.size(0), -1)
-
-        adv = F.relu(self.fc1(x))
-        adv = self.fc2(adv)
-        return adv
-
-
 
 class PPO:
-    def __init__(self, envs, eval_env, dim_state, dim_action, steps, device, lmd=0.95, gamma=0.99, batch_size=128,
-                 lr=2.5e-4, horizon=128, clip_eps=0.2, epoch_per_update=3, entropy_coef=0.01, high_reso=False,
+    def __init__(self, envs, eval_env, steps, actor, critic,
+                 device, lmd=0.95, gamma=0.99, batch_size=128,
+                 lr=2.5e-4, horizon=128, clip_eps=0.2, epoch_per_update=3, entropy_coef=0.01,
                  load="", eval_interval=50000, run_per_eval=3):
         self.envs = envs
         self.eval_env = eval_env
-        self.dim_state = dim_state
-        self.dim_action = dim_action
         self.lmd = lmd
         self.gamma = gamma
         self.device = device
@@ -85,8 +36,8 @@ class PPO:
         self.elapsed_step = 0
         self.best_score = -1e10
 
-        self.actor = ActorNet(dim_state, dim_action, high_reso=high_reso)
-        self.critic = CriticNet(dim_state, high_reso=high_reso)
+        self.actor = actor
+        self.critic = critic
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr)
 
@@ -212,11 +163,11 @@ class PPO:
                     dist = Categorical(logits=action_logits)
                     actions = dist.sample().cpu().numpy()
 
-                    obs, reward, done, _ = self.eval_env.step(actions)
+                    obs, reward, done, _ = self.eval_env.step(actions[0])
 
                     total_reward += reward
 
-                if self.eval_env.was_real_done:
+                if done:
                     break
 
         total_reward /= self.run_per_eval

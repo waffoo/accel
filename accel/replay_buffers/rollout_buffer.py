@@ -68,7 +68,7 @@ class RolloutBuffer:
 
         state_batch = np.array(batch.state, dtype=np.float32)
         state_shape = state_batch.shape
-        state_batch = state_batch.reshape(-1, state_shape[2], state_shape[3], state_shape[4])
+        state_batch = state_batch.reshape(-1, *state_shape[2:])
 
         reward_batch = np.array(self.cum_reward, dtype=np.float32).flatten()
 
@@ -81,6 +81,9 @@ class RolloutBuffer:
         action_batch = torch.tensor(action_batch)
         log_prob_batch = torch.tensor(log_prob_batch)
         gae_batch = torch.tensor(gae_batch)
+
+        #gae_batch -= gae_batch.mean()
+        #gae_batch /= gae_batch.std()
 
         dataset = TensorDataset(state_batch, reward_batch, action_batch, log_prob_batch, gae_batch)
 
