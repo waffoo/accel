@@ -139,7 +139,8 @@ class PPO:
                 buffer.push(transition, values)
 
                 obs = next_obs
-                self.elapsed_step += sum(~done).item()
+
+            self.elapsed_step += self.horizon * self.envs.num_envs
 
             obs_tensor = torch.tensor(obs, dtype=torch.float32).to(self.device)
             with torch.no_grad():

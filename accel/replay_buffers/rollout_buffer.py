@@ -32,12 +32,12 @@ class RolloutBuffer:
 
         self.values.append(v_s)
         self._compute_gae()
+        self._compute_cum_reward()
 
     def _compute_gae(self):
         # the last element of the buffer is dummy transition for value calculation
         self.gae = [None for _ in range(len(self.buffer))]
         deltas = [None for _ in range(len(self.buffer))]
-        self.cum_reward = [None for _ in range(len(self.buffer))]
 
         for i in reversed(range(len(self.gae))):
             delta = self.buffer[i].reward + \
@@ -51,6 +51,10 @@ class RolloutBuffer:
             else:
                 self.gae[i] = deltas[i] + self.buffer[i].valid * (self.lmd * self.gamma) * self.gae[i+1]
 
+    def _compute_cum_reward(self):
+        self.cum_reward = [None for _ in range(len(self.buffer))]
+
+        # normalize?
         for i in reversed(range(len(self.cum_reward))):
             if i == len(self.cum_reward) - 1:
                 self.cum_reward[i] = self.buffer[i].reward + self.buffer[i].valid * self.gamma * self.values[i+1]
