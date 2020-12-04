@@ -37,8 +37,8 @@ class PPO:
         self.elapsed_step = 0
         self.best_score = -1e10
 
-        self.actor = actor
-        self.critic = critic
+        self.actor = actor.to(device)
+        self.critic = critic.to(device)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr)
 
@@ -113,6 +113,10 @@ class PPO:
             self.actor.train()
             for _ in range(self.epoch_per_update):
                 for (ob_, val_, ac_, log_prob_old_, gae_) in dataloader:
+                    ob_, ac_ = ob_.to(self.device), ac_.to(self.device)
+                    log_prob_old_ = log_prob_old_.to(self.device)
+                    gae_ = gae_.to(self.device)
+
                     # update the policy by maximizing PPO-Clip objective
                     action_logits = self.actor(ob_)
                     dist = Categorical(logits=action_logits)
@@ -131,7 +135,7 @@ class PPO:
                     self.actor_optimizer.step()
 
                     # value function learning
-                    ob_, val_ = ob_.to(self.device), val_.to(self.device)
+                    val_ = val_.to(self.device)
                     pred = self.critic(ob_).flatten()
                     loss = F.mse_loss(pred, val_)
 
@@ -184,7 +188,7 @@ class PPO:
 
         now = time.time()
         elapsed = now - self.train_start_time
-        log = f'{self.elapsed_step} {total_reward} {elapsed:.1f}\n'
+        log = f'{self.elapsed_step} {total_reward:.1f} {elapsed:.1f}\n'
         print(log, end='')
 
         with open(self.log_file_name, 'a') as f:

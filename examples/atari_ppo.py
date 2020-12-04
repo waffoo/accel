@@ -136,7 +136,7 @@ def main(cfg):
         agent2 = ppo.PPO(envs, eval_env, cfg.steps,
                             actor=actor, critic=critic, lmd=0.9, gamma=cfg.gamma,
                             device=cfg.device, batch_size=32, load=cfg.load, eval_interval=cfg.eval_interval,
-                            clip_eps=0.2, lr=1e-3)
+                            clip_eps=0.1)
 
         agent2.run()
 

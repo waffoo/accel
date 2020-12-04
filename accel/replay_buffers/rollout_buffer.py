@@ -82,8 +82,8 @@ class RolloutBuffer:
         log_prob_batch = torch.tensor(log_prob_batch)
         gae_batch = torch.tensor(gae_batch)
 
-        #gae_batch -= gae_batch.mean()
-        #gae_batch /= gae_batch.std()
+        # gae_batch -= gae_batch.mean()
+        # gae_batch /= gae_batch.std()
 
         dataset = TensorDataset(state_batch, reward_batch, action_batch, log_prob_batch, gae_batch)
 
