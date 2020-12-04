@@ -60,6 +60,7 @@ def main(cfg):
     with mlflow.start_run(run_name=cfg.name):
         mlflow.log_param('seed', cfg.seed)
         mlflow.log_param('gamma', cfg.gamma)
+        mlflow.log_param('parallel', cfg.parallel)
         mlflow.log_param('color', cfg.color)
         mlflow.log_param('high', cfg.high_reso)
         mlflow.log_param('no_stack', cfg.no_stack)
@@ -71,14 +72,14 @@ def main(cfg):
         wrapper = callable_atari_wrapper(color=cfg.color, frame_stack=not cfg.no_stack)
         eval_wrapper = callable_atari_wrapper(color=cfg.color, frame_stack=not cfg.no_stack, clip_rewards=False)
 
-        envs = gym.vector.make(cfg.env, 8, wrappers=wrapper)
-        eval_envs = gym.vector.make(cfg.env, 8, wrappers=eval_wrapper)
+        envs = gym.vector.make(cfg.env, cfg.parallel, wrappers=wrapper)
+        eval_envs = gym.vector.make(cfg.env, cfg.parallel, wrappers=eval_wrapper)
 
         dim_state = envs.observation_space.shape[1]
         dim_action = envs.action_space[0].n
 
         agent2 = ppo.PPO(envs, eval_envs, dim_state, dim_action, cfg.steps, lmd=0.9, gamma=cfg.gamma,
-                            device=cfg.device, batch_size=8, lr=1e-4)
+                            device=cfg.device, batch_size=128)
 
         agent2.run()
 

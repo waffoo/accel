@@ -60,8 +60,8 @@ class CriticNet(nn.Module):
 
 
 class PPO:
-    def __init__(self, envs, eval_envs, dim_state, dim_action, steps, lmd, gamma, device, batch_size, lr,
-                 horizon=128, clip_eps=0.2, high_reso=False):
+    def __init__(self, envs, eval_envs, dim_state, dim_action, steps, device, lmd=0.95, gamma=0.99, batch_size=128,
+                 lr=2.5e-4, horizon=128, clip_eps=0.2, epoch_per_update=3, entropy_coef=0.01, high_reso=False):
         self.envs = envs
         self.eval_envs = eval_envs
         self.dim_state = dim_state
@@ -71,15 +71,21 @@ class PPO:
         self.device = device
         self.batch_size = batch_size
         self.clip_eps = clip_eps
+        self.epoch_per_update = epoch_per_update
+        self.entropy_coef = entropy_coef
+
+        self.steps = steps
+        self.horizon = horizon
+        self.elapsed_step = 0
 
         self.actor = ActorNet(dim_state, dim_action, high_reso=high_reso)
         self.critic = CriticNet(dim_state, high_reso=high_reso)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr)
 
-        self.steps = steps
-        self.horizon = horizon
-        self.elapsed_step = 0
+        from accel.explorers.epsilon_greedy import LinearDecayEpsilonGreedy
+        self.lr_scheduler = LinearDecayEpsilonGreedy(start_eps=1, end_eps=0.01, decay_steps=self.steps)
+
 
     def act(self, obs, greedy=False):
         pass
@@ -99,6 +105,7 @@ class PPO:
             # collect trajectories
             buffer.clear()
             self.critic.eval()
+            self.actor.eval()
             for i in range(self.horizon):
                 obs_tensor = torch.tensor(obs, dtype=torch.float32).to(self.device)
 
@@ -126,35 +133,43 @@ class PPO:
             # compute advantage estimates A_t using GAE
             buffer.final_state_value(values)
 
+            next_lr = self.lr_scheduler.calc_eps(self.elapsed_step)
+            assert len(self.actor_optimizer.param_groups) == 1
+            self.actor_optimizer.param_groups[0]['lr'] = next_lr
+            self.critic_optimizer.param_groups[0]['lr'] = next_lr
+
             dataset = buffer.create_dataset()
             dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
             self.critic.train()
-            for (ob_, val_, ac_, log_prob_old_, gae_) in dataloader:
-                # update the policy by maximizing PPO-Clip objective
-                action_logits = self.actor(ob_)
-                dist = Categorical(logits=action_logits)
-                log_prob = dist.log_prob(ac_)
-                ratio = torch.exp(log_prob - log_prob_old_)
+            self.actor.train()
+            for _ in range(self.epoch_per_update):
+                for (ob_, val_, ac_, log_prob_old_, gae_) in dataloader:
+                    # update the policy by maximizing PPO-Clip objective
+                    action_logits = self.actor(ob_)
+                    dist = Categorical(logits=action_logits)
+                    log_prob = dist.log_prob(ac_)
+                    entropy_bonus = dist.entropy()
+                    ratio = torch.exp(log_prob - log_prob_old_)
 
-                surr1 = ratio * gae_
-                surr2 = torch.clip(ratio, 1-self.clip_eps, 1+self.clip_eps) * gae_
+                    surr1 = ratio * gae_
+                    surr2 = torch.clip(ratio, 1-self.clip_eps, 1+self.clip_eps) * gae_
 
-                # minus means "ascent"
-                loss = -torch.min(surr1, surr2).mean()
+                    # minus means "ascent"
+                    loss = -torch.min(surr1, surr2).mean() - (entropy_bonus * self.entropy_coef).mean()
 
-                self.actor_optimizer.zero_grad()
-                loss.backward()
-                self.actor_optimizer.step()
+                    self.actor_optimizer.zero_grad()
+                    loss.backward()
+                    self.actor_optimizer.step()
 
-                # value function learning
-                ob_, val_ = ob_.to(self.device), val_.to(self.device)
-                pred = self.critic(ob_).flatten()
-                loss = F.mse_loss(pred, val_)
+                    # value function learning
+                    ob_, val_ = ob_.to(self.device), val_.to(self.device)
+                    pred = self.critic(ob_).flatten()
+                    loss = F.mse_loss(pred, val_)
 
-                self.critic_optimizer.zero_grad()
-                loss.backward()
-                self.critic_optimizer.step()
+                    self.critic_optimizer.zero_grad()
+                    loss.backward()
+                    self.critic_optimizer.step()
 
 
 
