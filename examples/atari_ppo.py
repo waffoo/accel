@@ -54,6 +54,8 @@ def main(cfg):
     set_seed(cfg.seed)
 
     cwd = hydra.utils.get_original_cwd()
+    if cfg.load:
+        cfg.load = os.path.join(cwd, cfg.load)
     mlflow.set_tracking_uri(os.path.join(cwd, 'mlruns'))
     mlflow.set_experiment('atari_ppo')
 
@@ -66,6 +68,7 @@ def main(cfg):
         mlflow.log_param('no_stack', cfg.no_stack)
         mlflow.set_tag('env', cfg.env)
 
+
         if not cfg.device:
             cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -73,26 +76,15 @@ def main(cfg):
         eval_wrapper = callable_atari_wrapper(color=cfg.color, frame_stack=not cfg.no_stack, clip_rewards=False)
 
         envs = gym.vector.make(cfg.env, cfg.parallel, wrappers=wrapper)
-        eval_envs = gym.vector.make(cfg.env, cfg.parallel, wrappers=eval_wrapper)
+        eval_env = make_atari(cfg.env, color=cfg.color, frame_stack=not cfg.no_stack, clip_rewards=False)
 
         dim_state = envs.observation_space.shape[1]
         dim_action = envs.action_space[0].n
 
-        agent2 = ppo.PPO(envs, eval_envs, dim_state, dim_action, cfg.steps, lmd=0.9, gamma=cfg.gamma,
-                            device=cfg.device, batch_size=128)
+        agent2 = ppo.PPO(envs, eval_env, dim_state, dim_action, cfg.steps, lmd=0.9, gamma=cfg.gamma,
+                            device=cfg.device, batch_size=128, load=cfg.load, eval_interval=cfg.eval_interval)
 
         agent2.run()
-
-
-def finalize(env):
-    try:
-        print('hoge')
-        env.close()
-    except:
-        print('fuga')
-        return
-
-
 
 
 if __name__ == '__main__':

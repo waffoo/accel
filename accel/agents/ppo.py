@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -5,9 +6,11 @@ from collections import namedtuple
 from torch.utils.data import DataLoader
 import numpy as np
 import torch.optim as optim
+import time
 
 from accel.replay_buffers.rollout_buffer import RolloutBuffer, Transition
 from torch.distributions import Categorical
+from accel.explorers.epsilon_greedy import LinearDecayEpsilonGreedy
 
 
 class ActorNet(nn.Module):
@@ -60,10 +63,11 @@ class CriticNet(nn.Module):
 
 
 class PPO:
-    def __init__(self, envs, eval_envs, dim_state, dim_action, steps, device, lmd=0.95, gamma=0.99, batch_size=128,
-                 lr=2.5e-4, horizon=128, clip_eps=0.2, epoch_per_update=3, entropy_coef=0.01, high_reso=False):
+    def __init__(self, envs, eval_env, dim_state, dim_action, steps, device, lmd=0.95, gamma=0.99, batch_size=128,
+                 lr=2.5e-4, horizon=128, clip_eps=0.2, epoch_per_update=3, entropy_coef=0.01, high_reso=False,
+                 load="", eval_interval=50000, run_per_eval=3):
         self.envs = envs
-        self.eval_envs = eval_envs
+        self.eval_env = eval_env
         self.dim_state = dim_state
         self.dim_action = dim_action
         self.lmd = lmd
@@ -73,18 +77,25 @@ class PPO:
         self.clip_eps = clip_eps
         self.epoch_per_update = epoch_per_update
         self.entropy_coef = entropy_coef
+        self.eval_interval = eval_interval
+        self.run_per_eval = run_per_eval
 
         self.steps = steps
         self.horizon = horizon
         self.elapsed_step = 0
+        self.best_score = -1e10
 
         self.actor = ActorNet(dim_state, dim_action, high_reso=high_reso)
         self.critic = CriticNet(dim_state, high_reso=high_reso)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr)
 
-        from accel.explorers.epsilon_greedy import LinearDecayEpsilonGreedy
+        # TODO detach scheduler from epsilon greedy
         self.lr_scheduler = LinearDecayEpsilonGreedy(start_eps=1, end_eps=0.01, decay_steps=self.steps)
+
+        if load:
+            self.actor.load_state_dict(torch.load(f'{load}/actor.model', map_location=device))
+            self.critic.load_state_dict(torch.load(f'{load}/critic.model', map_location=device))
 
 
     def act(self, obs, greedy=False):
@@ -97,9 +108,13 @@ class PPO:
         pass
 
     def run(self):
+        self.train_start_time = time.time()
+        self.log_file_name = 'scores.txt'
+
         obs = self.envs.reset()
 
         buffer = RolloutBuffer(self.gamma, self.lmd)
+        self.next_eval_cnt = 1
 
         while self.elapsed_step < self.steps:
             # collect trajectories
@@ -171,5 +186,53 @@ class PPO:
                     loss.backward()
                     self.critic_optimizer.step()
 
+            self.critic.eval()
+            self.actor.eval()
 
+            if self.elapsed_step >= self.next_eval_cnt * self.eval_interval:
+                self.evaluate()
 
+        print('Complete')
+
+    def evaluate(self):
+        self.next_eval_cnt += 1
+
+        total_reward = 0.
+
+        for _ in range(self.run_per_eval):
+            while True:
+                done = False
+                obs = self.eval_env.reset()
+
+                while not done:
+                    obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(self.device)
+                    with torch.no_grad():
+                        action_logits = self.actor(obs_tensor)
+                    dist = Categorical(logits=action_logits)
+                    actions = dist.sample().cpu().numpy()
+
+                    obs, reward, done, _ = self.eval_env.step(actions)
+
+                    total_reward += reward
+
+                if self.eval_env.was_real_done:
+                    break
+
+        total_reward /= self.run_per_eval
+
+        if total_reward > self.best_score:
+            self.best_score = total_reward
+            dirname = f'{self.elapsed_step}'
+            if not os.path.exists(dirname):
+                os.mkdir(dirname)
+
+            torch.save(self.actor.state_dict(), f'{dirname}/actor.model')
+            torch.save(self.critic.state_dict(), f'{dirname}/critic.model')
+
+        now = time.time()
+        elapsed = now - self.train_start_time
+        log = f'{self.elapsed_step} {total_reward} {elapsed:.1f}\n'
+        print(log, end='')
+
+        with open(self.log_file_name, 'a') as f:
+            f.write(log)
