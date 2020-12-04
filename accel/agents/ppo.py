@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 import torch.optim as optim
 import time
+import mlflow
 
 from accel.replay_buffers.rollout_buffer import RolloutBuffer, Transition
 from torch.distributions import Categorical
@@ -18,7 +19,7 @@ class PPO:
     def __init__(self, envs, eval_env, steps, actor, critic,
                  device, lmd=0.95, gamma=0.99, batch_size=128,
                  lr=2.5e-4, horizon=128, clip_eps=0.2, epoch_per_update=3, entropy_coef=0.01,
-                 load="", eval_interval=50000, run_per_eval=3):
+                 load="", eval_interval=50000, epoch_per_eval=4, mlflow=False):
         self.envs = envs
         self.eval_env = eval_env
         self.lmd = lmd
@@ -29,8 +30,9 @@ class PPO:
         self.epoch_per_update = epoch_per_update
         self.entropy_coef = entropy_coef
         self.eval_interval = eval_interval
-        self.run_per_eval = run_per_eval
+        self.epoch_per_eval = epoch_per_eval
         self.lr = lr
+        self.mlflow = mlflow
 
         self.steps = steps
         self.horizon = horizon
@@ -137,7 +139,7 @@ class PPO:
                     # value function learning
                     val_ = val_.to(self.device)
                     pred = self.critic(ob_).flatten()
-                    loss = F.mse_loss(pred, val_)
+                    loss = F.mse_loss(pred, val_) / 2
 
                     self.critic_optimizer.zero_grad()
                     loss.backward()
@@ -149,6 +151,10 @@ class PPO:
             if self.elapsed_step >= self.next_eval_cnt * self.eval_interval:
                 self.evaluate()
 
+        if self.mlflow:
+            now = time.time()
+            elapsed = now - self.train_start_time
+            mlflow.log_metric('duration', np.round(elapsed / 60 / 60, 2))
         print('Complete')
 
     def evaluate(self):
@@ -156,7 +162,7 @@ class PPO:
 
         total_reward = 0.
 
-        for _ in range(self.run_per_eval):
+        for _ in range(self.epoch_per_eval):
             while True:
                 done = False
                 obs = self.eval_env.reset()
@@ -175,7 +181,9 @@ class PPO:
                 if done:
                     break
 
-        total_reward /= self.run_per_eval
+        total_reward /= self.epoch_per_eval
+        if self.mlflow:
+            mlflow.log_metric('reward', total_reward, step=self.elapsed_step)
 
         if total_reward > self.best_score:
             self.best_score = total_reward

@@ -108,6 +108,7 @@ def main(cfg):
         mlflow.log_param('color', cfg.color)
         mlflow.log_param('high', cfg.high_reso)
         mlflow.log_param('no_stack', cfg.no_stack)
+        mlflow.log_param('batch_size', cfg.batch_size)
         mlflow.set_tag('env', cfg.env)
 
 
@@ -135,8 +136,8 @@ def main(cfg):
 
         agent2 = ppo.PPO(envs, eval_env, cfg.steps,
                             actor=actor, critic=critic, lmd=0.9, gamma=cfg.gamma,
-                            device=cfg.device, batch_size=32, load=cfg.load, eval_interval=cfg.eval_interval,
-                            clip_eps=0.1)
+                            device=cfg.device, batch_size=cfg.batch_size, load=cfg.load, eval_interval=cfg.eval_interval,
+                            clip_eps=0.1, mlflow=True)
 
         agent2.run()
 

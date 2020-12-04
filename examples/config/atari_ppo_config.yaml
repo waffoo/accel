@@ -12,3 +12,4 @@ color: False
 high_reso: False
 no_stack: False
 atari: True
+batch_size: 32
