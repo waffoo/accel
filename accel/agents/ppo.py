@@ -111,10 +111,17 @@ class PPO:
             dataset = buffer.create_dataset()
             dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
+
+            value_loss_epoch = 0.
+            actor_loss_epoch = 0.
+            entropy_bonus_epoch = 0.
+            added_cnt = 0
+
             self.critic.train()
             self.actor.train()
             for _ in range(self.epoch_per_update):
                 for (ob_, val_, ac_, log_prob_old_, gae_) in dataloader:
+                    added_cnt += 1
                     ob_, ac_ = ob_.to(self.device), ac_.to(self.device)
                     log_prob_old_ = log_prob_old_.to(self.device)
                     gae_ = gae_.to(self.device)
@@ -123,14 +130,15 @@ class PPO:
                     action_logits = self.actor(ob_)
                     dist = Categorical(logits=action_logits)
                     log_prob = dist.log_prob(ac_)
-                    entropy_bonus = dist.entropy()
+                    entropy_bonus = dist.entropy().mean()
                     ratio = torch.exp(log_prob - log_prob_old_)
 
                     surr1 = ratio * gae_
                     surr2 = torch.clip(ratio, 1-self.clip_eps, 1+self.clip_eps) * gae_
 
                     # minus means "ascent"
-                    loss = -torch.min(surr1, surr2).mean() - (entropy_bonus * self.entropy_coef).mean()
+                    actor_loss = -torch.min(surr1, surr2).mean()
+                    loss = actor_loss - entropy_bonus * self.entropy_coef
 
                     self.actor_optimizer.zero_grad()
                     loss.backward()
@@ -139,16 +147,29 @@ class PPO:
                     # value function learning
                     val_ = val_.to(self.device)
                     pred = self.critic(ob_).flatten()
-                    loss = F.mse_loss(pred, val_) / 2
+                    value_loss = F.mse_loss(pred, val_) / 2
 
                     self.critic_optimizer.zero_grad()
-                    loss.backward()
+                    value_loss.backward()
                     self.critic_optimizer.step()
+
+                    value_loss_epoch += value_loss.item()
+                    actor_loss_epoch += actor_loss.item()
+                    entropy_bonus_epoch += entropy_bonus.item()
+
+            value_loss_epoch /= added_cnt
+            actor_loss_epoch /= added_cnt
+            entropy_bonus_epoch /= added_cnt
+
 
             self.critic.eval()
             self.actor.eval()
 
             if self.elapsed_step >= self.next_eval_cnt * self.eval_interval:
+                mlflow.log_metric('value_loss', value_loss_epoch, step=self.elapsed_step)
+                mlflow.log_metric('actor_loss', actor_loss_epoch, step=self.elapsed_step)
+                mlflow.log_metric('entropy_bonus', entropy_bonus_epoch, step=self.elapsed_step)
+
                 self.evaluate()
 
         if self.mlflow:
@@ -178,7 +199,7 @@ class PPO:
 
                     total_reward += reward
 
-                if done:
+                if self.eval_env.was_real_done:
                     break
 
         total_reward /= self.epoch_per_eval
