@@ -44,7 +44,6 @@ class RolloutBuffer:
                     self.gamma * self.buffer[i].valid * self.values[i + 1] - self.values[i]
             deltas[i] = delta
 
-        # normalize?
         for i in reversed(range(len(self.gae))):
             if i == len(self.gae) - 1:
                 self.gae[i] = deltas[i]
@@ -54,12 +53,8 @@ class RolloutBuffer:
     def _compute_cum_reward(self):
         self.cum_reward = [None for _ in range(len(self.buffer))]
 
-        # normalize?
         for i in reversed(range(len(self.cum_reward))):
-            if i == len(self.cum_reward) - 1:
-                self.cum_reward[i] = self.buffer[i].reward + self.buffer[i].valid * self.gamma * self.values[i+1]
-            else:
-                self.cum_reward[i] = self.buffer[i].reward + self.buffer[i].valid * self.gamma * self.cum_reward[i+1]
+            self.cum_reward[i] = self.values[i] + self.gae[i]
 
     def create_dataset(self):
         assert self.gae is not None and self.cum_reward is not None
@@ -82,10 +77,13 @@ class RolloutBuffer:
         log_prob_batch = torch.tensor(log_prob_batch)
         gae_batch = torch.tensor(gae_batch)
 
-        # gae_batch -= gae_batch.mean()
-        # gae_batch /= gae_batch.std()
+        values_batch = np.array(self.values, dtype=np.float32)[:-1].flatten()
+        values_batch = torch.tensor(values_batch)
 
-        dataset = TensorDataset(state_batch, reward_batch, action_batch, log_prob_batch, gae_batch)
+        gae_batch -= gae_batch.mean()
+        gae_batch /= (gae_batch.std() + 1e-6)
+
+        dataset = TensorDataset(state_batch, reward_batch, action_batch, log_prob_batch, gae_batch, values_batch)
 
         return dataset
 

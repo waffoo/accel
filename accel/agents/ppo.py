@@ -19,7 +19,8 @@ class PPO:
     def __init__(self, envs, eval_env, steps, actor, critic,
                  device, lmd=0.95, gamma=0.99, batch_size=128,
                  lr=2.5e-4, horizon=128, clip_eps=0.2, epoch_per_update=4, entropy_coef=0.01,
-                 load="", eval_interval=50000, epoch_per_eval=3, mlflow=False, value_loss_coef=0.5):
+                 load="", eval_interval=50000, epoch_per_eval=3, mlflow=False, value_loss_coef=0.5,
+                 value_clipping=True):
         self.envs = envs
         self.eval_env = eval_env
         self.lmd = lmd
@@ -34,6 +35,7 @@ class PPO:
         self.lr = lr
         self.mlflow = mlflow
         self.value_loss_coef = value_loss_coef
+        self.value_clipping = value_clipping
 
         self.steps = steps
         self.horizon = horizon
@@ -119,7 +121,7 @@ class PPO:
             self.critic.train()
             self.actor.train()
             for _ in range(self.epoch_per_update):
-                for (ob_, val_, ac_, log_prob_old_, gae_) in dataloader:
+                for (ob_, ret_, ac_, log_prob_old_, gae_, value_) in dataloader:
                     added_cnt += 1
                     ob_, ac_ = ob_.to(self.device), ac_.to(self.device)
                     log_prob_old_ = log_prob_old_.to(self.device)
@@ -139,9 +141,20 @@ class PPO:
                     actor_loss = -torch.min(surr1, surr2).mean()
 
                     # value function learning
-                    val_ = val_.to(self.device)
+                    ret_, value_ = ret_.to(self.device), value_.to(self.device)
                     pred = self.critic(ob_).flatten()
-                    value_loss = F.mse_loss(pred, val_) / 2
+
+                    if self.value_clipping:
+                        clipped_pred = value_ + (pred - value_).clamp(-self.clip_eps, self.clip_eps)
+
+                        value_loss = (pred - ret_).pow(2)
+                        clipped_value_loss = (clipped_pred - ret_).pow(2)
+                        value_loss = torch.max(value_loss, clipped_value_loss).mean() / 2
+
+                    else:
+                        value_loss = F.mse_loss(pred, ret_) / 2
+
+
 
                     loss = value_loss * self.value_loss_coef + actor_loss - entropy_bonus * self.entropy_coef
 
