@@ -39,6 +39,7 @@ class PPO:
         self.horizon = horizon
         self.elapsed_step = 0
         self.best_score = -1e10
+        self.max_grad_norm = 0.5
 
         self.actor = actor.to(device)
         self.critic = critic.to(device)
@@ -146,6 +147,8 @@ class PPO:
 
                     self.optimizer.zero_grad()
                     loss.backward()
+                    nn.utils.clip_grad_norm_(
+                        list(self.actor.parameters()) + list(self.critic.parameters()), self.max_grad_norm)
                     self.optimizer.step()
 
                     value_loss_epoch += value_loss.item()
