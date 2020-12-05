@@ -2,9 +2,9 @@ env: BreakoutNoFrameskip-v4
 load: ""
 device: ""
 demo: False
-steps: 5_000_000
+steps: 10_000_000
 seed: 0
-eval_interval: 10_000
+eval_interval: 50_000
 gamma: 0.99
 parallel: 8
 name: ""
