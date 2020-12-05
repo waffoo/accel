@@ -18,8 +18,8 @@ from accel.explorers.epsilon_greedy import LinearDecayEpsilonGreedy
 class PPO:
     def __init__(self, envs, eval_env, steps, actor, critic,
                  device, lmd=0.95, gamma=0.99, batch_size=128,
-                 lr=2.5e-4, horizon=128, clip_eps=0.2, epoch_per_update=3, entropy_coef=0.01,
-                 load="", eval_interval=50000, epoch_per_eval=4, mlflow=False):
+                 lr=2.5e-4, horizon=128, clip_eps=0.2, epoch_per_update=4, entropy_coef=0.01,
+                 load="", eval_interval=50000, epoch_per_eval=3, mlflow=False, value_loss_coef=0.5):
         self.envs = envs
         self.eval_env = eval_env
         self.lmd = lmd
@@ -33,6 +33,7 @@ class PPO:
         self.epoch_per_eval = epoch_per_eval
         self.lr = lr
         self.mlflow = mlflow
+        self.value_loss_coef = value_loss_coef
 
         self.steps = steps
         self.horizon = horizon
@@ -41,8 +42,7 @@ class PPO:
 
         self.actor = actor.to(device)
         self.critic = critic.to(device)
-        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr)
-        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr)
+        self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr, eps=1e-5)
 
         # TODO detach scheduler from epsilon greedy
         self.lr_scheduler = LinearDecayEpsilonGreedy(start_eps=1, end_eps=0.01, decay_steps=self.steps)
@@ -104,13 +104,11 @@ class PPO:
             buffer.final_state_value(values)
 
             next_lr = self.lr_scheduler.calc_eps(self.elapsed_step) * self.lr
-            assert len(self.actor_optimizer.param_groups) == 1
-            self.actor_optimizer.param_groups[0]['lr'] = next_lr
-            self.critic_optimizer.param_groups[0]['lr'] = next_lr
+            for pg in self.optimizer.param_groups:
+                pg['lr'] = next_lr
 
             dataset = buffer.create_dataset()
             dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
-
 
             value_loss_epoch = 0.
             actor_loss_epoch = 0.
@@ -138,20 +136,17 @@ class PPO:
 
                     # minus means "ascent"
                     actor_loss = -torch.min(surr1, surr2).mean()
-                    loss = actor_loss - entropy_bonus * self.entropy_coef
-
-                    self.actor_optimizer.zero_grad()
-                    loss.backward()
-                    self.actor_optimizer.step()
 
                     # value function learning
                     val_ = val_.to(self.device)
                     pred = self.critic(ob_).flatten()
                     value_loss = F.mse_loss(pred, val_) / 2
 
-                    self.critic_optimizer.zero_grad()
-                    value_loss.backward()
-                    self.critic_optimizer.step()
+                    loss = value_loss * self.value_loss_coef + actor_loss - entropy_bonus * self.entropy_coef
+
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    self.optimizer.step()
 
                     value_loss_epoch += value_loss.item()
                     actor_loss_epoch += actor_loss.item()

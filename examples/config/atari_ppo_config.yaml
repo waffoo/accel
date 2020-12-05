@@ -12,4 +12,5 @@ color: False
 high_reso: False
 no_stack: False
 atari: True
-batch_size: 32
+batch_size: 256
+value_loss_coef: 0.5
