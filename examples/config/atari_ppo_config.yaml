@@ -14,4 +14,4 @@ no_stack: False
 atari: True
 batch_size: 256
 value_loss_coef: 0.5
-value_clipping: False
+value_clipping: True
