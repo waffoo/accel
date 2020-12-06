@@ -1,0 +1,17 @@
+env: BreakoutNoFrameskip-v4
+load: ""
+device: ""
+demo: False
+steps: 10_000_000
+seed: 0
+eval_interval: 50_000
+gamma: 0.99
+parallel: 8
+name: ""
+color: False
+high_reso: False
+no_stack: False
+atari: True
+batch_size: 256
+value_loss_coef: 0.5
+value_clipping: True

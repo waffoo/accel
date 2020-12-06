@@ -316,9 +316,7 @@ class TimeLimit(gym.Wrapper):
         return self.env.reset(**kwargs)
 
 
-def make_atari(name, max_episode_len=None, episodic_life=True, clip_rewards=True, frame_stack=True, pytorch=True, color=False, image_size=84):
-    env = gym.make(name)
-
+def _make_atari_core(env, max_episode_len=None, episodic_life=True, clip_rewards=True, frame_stack=True, pytorch=True, color=False, image_size=84):
     env = NoopResetEnv(env)
     env = MaxAndSkipEnv(env, skip=4)
     if max_episode_len is not None:
@@ -343,6 +341,19 @@ def make_atari(name, max_episode_len=None, episodic_life=True, clip_rewards=True
         env = FrameStack(env, 4)
 
     return env
+
+
+def callable_atari_wrapper(max_episode_len=None, episodic_life=True, clip_rewards=True, frame_stack=True, pytorch=True, color=False, image_size=84):
+
+    def wrapper(env):
+        return _make_atari_core(env, max_episode_len, episodic_life, clip_rewards, frame_stack, pytorch, color, image_size)
+
+    return wrapper
+
+def make_atari(name, max_episode_len=None, episodic_life=True, clip_rewards=True, frame_stack=True, pytorch=True, color=False, image_size=84):
+    env = gym.make(name)
+
+    return _make_atari_core(env, max_episode_len, episodic_life, clip_rewards, frame_stack, pytorch, color, image_size)
 
 
 def make_atari_ram(name, max_episode_len=None, episodic_life=True, clip_rewards=True):

@@ -18,6 +18,7 @@ $ pip install .
 Following algorithms have been implemented:
 - [DQN](https://web.stanford.edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf)
   (including [Double DQN](https://arxiv.org/abs/1509.06461), [Dueling DQN](https://arxiv.org/abs/1511.06581), [Prioritized Experience Replay](https://arxiv.org/abs/1511.05952), and Multi-step DQN)
+- [PPO](https://arxiv.org/abs/1707.06347)
 - [Soft Actor-Critic](https://arxiv.org/abs/1801.01290)
 
 ## Lisense
