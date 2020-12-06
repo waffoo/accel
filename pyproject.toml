@@ -5,7 +5,7 @@ description = ""
 authors = ["waffoo <mukuwaffle@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "3.7"
+python = "^3.7"
 opencv-python = "^4.2.0"
 torch = "^1.6.0"
 pytest = "^6.0.2"
@@ -16,7 +16,6 @@ pybullet = "^3.0.4"
 hydra-core = "^1.0.3"
 gym = "^0.17.2"
 atari-py = "^0.2.6"
-d4rl = {git = "https://github.com/rail-berkeley/d4rl.git", rev = "master"}
 procgen = "^0.10.4"
 
 [build-system]
