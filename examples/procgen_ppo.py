@@ -101,7 +101,7 @@ def main(cfg):
         envs = gym.vector.make(cfg.env, cfg.parallel, start_level=0, num_levels=cfg.num_levels,
                                distribution_mode='easy', wrappers=wrapper)
 
-        eval_env = gym.make(cfg.env, start_level=0, num_levels=cfg.num_levels, distribution_mode='easy')
+        eval_env = gym.make(cfg.env, start_level=cfg.num_levels, num_levels=100_000, distribution_mode='easy')
         eval_env = eval_wrapper(eval_env)
 
         if not cfg.device:

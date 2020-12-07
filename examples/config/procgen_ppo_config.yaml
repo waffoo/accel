@@ -2,9 +2,9 @@ env: 'procgen:procgen-coinrun-v0'
 load: ""
 device: ""
 demo: False
-steps: 10_000_000 #10M
+steps: 25_000_000 #10M
 seed: 0
-eval_interval: 50_000
+eval_interval: 100_000 #100k
 gamma: 0.99
 parallel: 8
 name: ""
@@ -14,6 +14,6 @@ atari: False
 batch_size: 256
 value_loss_coef: 0.5
 value_clipping: True
-epoch_per_eval: 10
-num_levels: 1000
+epoch_per_eval: 20 # important
+num_levels: 1000 # important
 horizon: 128
