@@ -9,10 +9,11 @@ gamma: 0.99
 parallel: 8
 name: ""
 color: True
-no_stack: False
-atari: True
+no_stack: True
+atari: False
 batch_size: 256
 value_loss_coef: 0.5
 value_clipping: True
 epoch_per_eval: 10
 num_levels: 1000
+horizon: 128
