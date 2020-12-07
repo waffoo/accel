@@ -20,7 +20,7 @@ class PPO:
                  device, lmd=0.95, gamma=0.99, batch_size=128,
                  lr=2.5e-4, horizon=128, clip_eps=0.2, epoch_per_update=4, entropy_coef=0.01,
                  load="", eval_interval=50000, epoch_per_eval=3, mlflow=False, value_loss_coef=0.5,
-                 value_clipping=True):
+                 value_clipping=True, atari=False):
         self.envs = envs
         self.eval_env = eval_env
         self.lmd = lmd
@@ -36,6 +36,7 @@ class PPO:
         self.mlflow = mlflow
         self.value_loss_coef = value_loss_coef
         self.value_clipping = value_clipping
+        self.atari = atari
 
         self.steps = steps
         self.horizon = horizon
@@ -210,8 +211,12 @@ class PPO:
 
                     total_reward += reward
 
-                if self.eval_env.was_real_done:
-                    break
+                if self.atari:
+                    if self.eval_env.was_real_done:
+                        break
+                else:
+                    if done:
+                        break
 
         total_reward /= self.epoch_per_eval
         if self.mlflow:

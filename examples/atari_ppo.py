@@ -157,7 +157,7 @@ def main(cfg):
                             actor=actor, critic=critic, lmd=0.9, gamma=cfg.gamma,
                             device=cfg.device, batch_size=cfg.batch_size, load=cfg.load, eval_interval=cfg.eval_interval,
                             clip_eps=0.1, mlflow=True, value_loss_coef=cfg.value_loss_coef,
-                            value_clipping=cfg.value_clipping)
+                            value_clipping=cfg.value_clipping, atari=True)
 
         agent2.run()
 

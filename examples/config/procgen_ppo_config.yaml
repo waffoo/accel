@@ -1,0 +1,18 @@
+env: 'procgen:procgen-coinrun-v0'
+load: ""
+device: ""
+demo: False
+steps: 10_000_000 #10M
+seed: 0
+eval_interval: 50_000
+gamma: 0.99
+parallel: 8
+name: ""
+color: True
+no_stack: False
+atari: True
+batch_size: 256
+value_loss_coef: 0.5
+value_clipping: True
+epoch_per_eval: 10
+num_levels: 1000
