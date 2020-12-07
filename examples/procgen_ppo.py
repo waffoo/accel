@@ -97,11 +97,12 @@ def main(cfg):
         mlflow.set_tag('env', cfg.env)
 
         wrapper = callable_procgen_wrapper(frame_stack=not cfg.no_stack, color=cfg.color)
+        eval_wrapper = callable_procgen_wrapper(frame_stack=not cfg.no_stack, color=cfg.color, clip_rewards=False)
         envs = gym.vector.make(cfg.env, cfg.parallel, start_level=0, num_levels=cfg.num_levels,
                                distribution_mode='easy', wrappers=wrapper)
 
         eval_env = gym.make(cfg.env, start_level=0, num_levels=cfg.num_levels, distribution_mode='easy')
-        eval_env = wrapper(eval_env)
+        eval_env = eval_wrapper(eval_env)
 
         if not cfg.device:
             cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
