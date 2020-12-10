@@ -82,8 +82,37 @@ def main(cfg):
     cwd = hydra.utils.get_original_cwd()
     if cfg.load:
         cfg.load = os.path.join(cwd, cfg.load)
+
+    if not cfg.device:
+        cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
     mlflow.set_tracking_uri(os.path.join(cwd, 'mlruns'))
     mlflow.set_experiment('procgen')
+
+    if cfg.demo:
+        wrapper = callable_procgen_wrapper(frame_stack=not cfg.no_stack, color=cfg.color)
+        eval_wrapper = callable_procgen_wrapper(frame_stack=not cfg.no_stack, color=cfg.color, clip_rewards=False)
+        envs = gym.vector.make(cfg.env, cfg.parallel, start_level=0, num_levels=cfg.num_levels,
+                               distribution_mode='easy', wrappers=wrapper)
+
+        eval_env = gym.make(cfg.env, start_level=cfg.num_levels, num_levels=100_000, distribution_mode='easy',
+                            render_mode='human')
+        eval_env = eval_wrapper(eval_env)
+
+        dim_state = envs.observation_space.shape[1]
+        dim_action = envs.action_space[0].n
+
+        actor = ActorNet(dim_state, dim_action)
+        critic = CriticNet(dim_state)
+
+        agent = PPO(envs, eval_env, steps=cfg.steps, actor=actor, critic=critic, lmd=0.9,
+                    gamma=cfg.gamma, device=cfg.device,
+                    batch_size=cfg.batch_size, load=cfg.load, eval_interval=cfg.eval_interval, clip_eps=0.1,
+                    mlflow=True, value_loss_coef=cfg.value_loss_coef, value_clipping=True,
+                    epoch_per_eval=cfg.epoch_per_eval, horizon=cfg.horizon)
+        agent.demo(10)
+        exit(0)
+
 
     with mlflow.start_run(run_name=cfg.name):
         mlflow.log_param('seed', cfg.seed)
@@ -105,8 +134,6 @@ def main(cfg):
         eval_env = gym.make(cfg.env, start_level=cfg.num_levels, num_levels=100_000, distribution_mode='easy')
         eval_env = eval_wrapper(eval_env)
 
-        if not cfg.device:
-            cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         mlflow.set_tag('device', cfg.device)
 

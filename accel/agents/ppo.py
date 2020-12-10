@@ -65,6 +65,39 @@ class PPO:
     def train(self):
         pass
 
+    def demo(self, episodes=10):
+        reward_sum = 0.
+
+        for i in range(episodes):
+            total_reward = 0.
+            while True:
+                done = False
+                obs = self.eval_env.reset()
+
+                while not done:
+                    obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(self.device)
+                    with torch.no_grad():
+                        action_logits = self.actor(obs_tensor)
+                    dist = Categorical(logits=action_logits)
+                    actions = dist.sample().cpu().numpy()
+
+                    obs, reward, done, _ = self.eval_env.step(actions[0])
+
+                    total_reward += reward
+
+                if self.atari:
+                    if self.eval_env.was_real_done:
+                        break
+                else:
+                    if done:
+                        break
+            log = f'Episode {i}: {total_reward:.1f}\n'
+            print(log, end='')
+            reward_sum += total_reward
+
+        print('average reward:', reward_sum / self.epoch_per_eval)
+
+
     def run(self):
         self.train_start_time = time.time()
         self.log_file_name = 'scores.txt'
