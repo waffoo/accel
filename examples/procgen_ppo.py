@@ -110,7 +110,7 @@ def main(cfg):
                     batch_size=cfg.batch_size, load=cfg.load, eval_interval=cfg.eval_interval, clip_eps=0.1,
                     mlflow=True, value_loss_coef=cfg.value_loss_coef, value_clipping=True,
                     epoch_per_eval=cfg.epoch_per_eval, horizon=cfg.horizon)
-        agent.demo(image_demo=cfg.image_demo, steps=50000, episodes=None)
+        agent.demo(image_demo=cfg.image_demo, steps=50000, episodes=None, out_dir=cfg.demo_outdir)
         exit(0)
 
 
