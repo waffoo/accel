@@ -95,6 +95,7 @@ def main(cfg):
         mlflow.log_param('horizon', cfg.horizon)
         mlflow.log_param('num_levels', cfg.num_levels)
         mlflow.set_tag('env', cfg.env)
+        mlflow.set_tag('hostname', os.uname()[1])
 
         wrapper = callable_procgen_wrapper(frame_stack=not cfg.no_stack, color=cfg.color)
         eval_wrapper = callable_procgen_wrapper(frame_stack=not cfg.no_stack, color=cfg.color, clip_rewards=False)
@@ -106,6 +107,8 @@ def main(cfg):
 
         if not cfg.device:
             cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+        mlflow.set_tag('device', cfg.device)
 
         '''
         obs = envs.reset()
