@@ -66,7 +66,7 @@ class PPO:
     def train(self):
         pass
 
-    def demo(self, episodes=10, image_demo=False, steps=50000):
+    def demo(self, episodes=10, image_demo=False, steps=50000, out_dir=''):
         assert episodes is not None or steps is not None
         reward_sum = 0.
         idx = 0
@@ -83,7 +83,7 @@ class PPO:
                         idx += 1
                         if image_demo and idx <= steps:
                             frame = cv2.cvtColor(obs.transpose(1, 2, 0), cv2.COLOR_BGR2RGB)
-                            cv2.imwrite(f'{idx:05d}.png', frame)
+                            cv2.imwrite(os.path.join(out_dir, f'{idx:05d}.png'), frame)
 
                         obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(self.device)
                         with torch.no_grad():
@@ -99,13 +99,13 @@ class PPO:
                         if self.eval_env.was_real_done:
                             if image_demo and idx <= steps:
                                 frame = cv2.cvtColor(obs.transpose(1, 2, 0), cv2.COLOR_BGR2RGB)
-                                cv2.imwrite(f'{idx:05d}.png', frame)
+                                cv2.imwrite(os.path.join(out_dir, f'{idx:05d}.png'), frame)
                             break
                     else:
                         if done:
                             if image_demo and idx <= steps:
                                 frame = cv2.cvtColor(obs.transpose(1, 2, 0), cv2.COLOR_BGR2RGB)
-                                cv2.imwrite(f'{idx:05d}.png', frame)
+                                cv2.imwrite(os.path.join(out_dir, f'{idx:05d}.png'), frame)
                             break
 
                 log = f'Episode {episode_cnt}: {total_reward:.1f}\n'
@@ -130,7 +130,7 @@ class PPO:
                     idx += 1
                     if image_demo:
                         frame = cv2.cvtColor(obs.transpose(1,2,0), cv2.COLOR_BGR2RGB)
-                        cv2.imwrite(f'{idx:05d}.png', frame)
+                        cv2.imwrite(os.path.join(out_dir, f'{idx:05d}.png'), frame)
 
                     obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(self.device)
                     with torch.no_grad():
@@ -146,13 +146,13 @@ class PPO:
                     if self.eval_env.was_real_done:
                         if image_demo:
                             frame = cv2.cvtColor(obs.transpose(1, 2, 0), cv2.COLOR_BGR2RGB)
-                            cv2.imwrite(f'{idx:05d}.png', frame)
+                            cv2.imwrite(os.path.join(out_dir, f'{idx:05d}.png'), frame)
                         break
                 else:
                     if done:
                         if image_demo:
                             frame = cv2.cvtColor(obs.transpose(1, 2, 0), cv2.COLOR_BGR2RGB)
-                            cv2.imwrite(f'{idx:05d}.png', frame)
+                            cv2.imwrite(os.path.join(out_dir, f'{idx:05d}.png'), frame)
                         break
 
             log = f'Episode {i}: {total_reward:.1f}\n'
