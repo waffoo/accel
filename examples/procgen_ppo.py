@@ -96,7 +96,7 @@ def main(cfg):
                                distribution_mode='easy', wrappers=wrapper)
 
         eval_env = gym.make(cfg.env, start_level=cfg.num_levels, num_levels=100_000, distribution_mode='easy',
-                            render_mode='human')
+                            render_mode='human' if not cfg.image_demo else 'rgb_array')
         eval_env = eval_wrapper(eval_env)
 
         dim_state = envs.observation_space.shape[1]
@@ -110,7 +110,7 @@ def main(cfg):
                     batch_size=cfg.batch_size, load=cfg.load, eval_interval=cfg.eval_interval, clip_eps=0.1,
                     mlflow=True, value_loss_coef=cfg.value_loss_coef, value_clipping=True,
                     epoch_per_eval=cfg.epoch_per_eval, horizon=cfg.horizon)
-        agent.demo(10)
+        agent.demo(image_demo=cfg.image_demo, steps=50000, episodes=None)
         exit(0)
 
 

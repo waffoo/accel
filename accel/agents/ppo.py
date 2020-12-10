@@ -8,6 +8,7 @@ import numpy as np
 import torch.optim as optim
 import time
 import mlflow
+import cv2
 
 from accel.replay_buffers.rollout_buffer import RolloutBuffer, Transition
 from torch.distributions import Categorical
@@ -65,8 +66,59 @@ class PPO:
     def train(self):
         pass
 
-    def demo(self, episodes=10):
+    def demo(self, episodes=10, image_demo=False, steps=50000):
+        assert episodes is not None or steps is not None
         reward_sum = 0.
+        idx = 0
+
+        if episodes is None:
+            episode_cnt = 0
+            while True:
+                total_reward = 0.
+                while True:
+                    done = False
+                    obs = self.eval_env.reset()
+
+                    while not done:
+                        idx += 1
+                        if image_demo and idx <= steps:
+                            frame = cv2.cvtColor(obs.transpose(1, 2, 0), cv2.COLOR_BGR2RGB)
+                            cv2.imwrite(f'{idx:05d}.png', frame)
+
+                        obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(self.device)
+                        with torch.no_grad():
+                            action_logits = self.actor(obs_tensor)
+                        dist = Categorical(logits=action_logits)
+                        actions = dist.sample().cpu().numpy()
+
+                        obs, reward, done, _ = self.eval_env.step(actions[0])
+
+                        total_reward += reward
+
+                    if self.atari:
+                        if self.eval_env.was_real_done:
+                            if image_demo and idx <= steps:
+                                frame = cv2.cvtColor(obs.transpose(1, 2, 0), cv2.COLOR_BGR2RGB)
+                                cv2.imwrite(f'{idx:05d}.png', frame)
+                            break
+                    else:
+                        if done:
+                            if image_demo and idx <= steps:
+                                frame = cv2.cvtColor(obs.transpose(1, 2, 0), cv2.COLOR_BGR2RGB)
+                                cv2.imwrite(f'{idx:05d}.png', frame)
+                            break
+
+                log = f'Episode {episode_cnt}: {total_reward:.1f}\n'
+                print(log, end='')
+                reward_sum += total_reward
+
+                if idx >= steps:
+                    break
+
+                episode_cnt += 1
+
+            return
+
 
         for i in range(episodes):
             total_reward = 0.
@@ -75,6 +127,11 @@ class PPO:
                 obs = self.eval_env.reset()
 
                 while not done:
+                    idx += 1
+                    if image_demo:
+                        frame = cv2.cvtColor(obs.transpose(1,2,0), cv2.COLOR_BGR2RGB)
+                        cv2.imwrite(f'{idx:05d}.png', frame)
+
                     obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(self.device)
                     with torch.no_grad():
                         action_logits = self.actor(obs_tensor)
@@ -87,10 +144,17 @@ class PPO:
 
                 if self.atari:
                     if self.eval_env.was_real_done:
+                        if image_demo:
+                            frame = cv2.cvtColor(obs.transpose(1, 2, 0), cv2.COLOR_BGR2RGB)
+                            cv2.imwrite(f'{idx:05d}.png', frame)
                         break
                 else:
                     if done:
+                        if image_demo:
+                            frame = cv2.cvtColor(obs.transpose(1, 2, 0), cv2.COLOR_BGR2RGB)
+                            cv2.imwrite(f'{idx:05d}.png', frame)
                         break
+
             log = f'Episode {i}: {total_reward:.1f}\n'
             print(log, end='')
             reward_sum += total_reward
