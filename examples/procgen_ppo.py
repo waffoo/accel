@@ -89,13 +89,15 @@ def main(cfg):
     mlflow.set_tracking_uri(os.path.join(cwd, 'mlruns'))
     mlflow.set_experiment('procgen')
 
+    difficulty = 'hard' if cfg.hard else 'easy'
+
     if cfg.demo:
         wrapper = callable_procgen_wrapper(frame_stack=not cfg.no_stack, color=cfg.color)
         eval_wrapper = callable_procgen_wrapper(frame_stack=not cfg.no_stack, color=cfg.color, clip_rewards=False)
         envs = gym.vector.make(cfg.env, cfg.parallel, start_level=0, num_levels=cfg.num_levels,
-                               distribution_mode='easy', wrappers=wrapper)
+                               distribution_mode=difficulty, wrappers=wrapper)
 
-        eval_env = gym.make(cfg.env, start_level=cfg.num_levels, num_levels=100_000, distribution_mode='easy',
+        eval_env = gym.make(cfg.env, start_level=cfg.num_levels, num_levels=100_000, distribution_mode=difficulty,
                             render_mode='human')
         eval_env = eval_wrapper(eval_env)
 
@@ -123,15 +125,16 @@ def main(cfg):
         mlflow.log_param('batch_size', cfg.batch_size)
         mlflow.log_param('horizon', cfg.horizon)
         mlflow.log_param('num_levels', cfg.num_levels)
+        mlflow.log_param('difficulty', difficulty)
         mlflow.set_tag('env', cfg.env)
         mlflow.set_tag('hostname', os.uname()[1])
 
         wrapper = callable_procgen_wrapper(frame_stack=not cfg.no_stack, color=cfg.color)
         eval_wrapper = callable_procgen_wrapper(frame_stack=not cfg.no_stack, color=cfg.color, clip_rewards=False)
         envs = gym.vector.make(cfg.env, cfg.parallel, start_level=0, num_levels=cfg.num_levels,
-                               distribution_mode='easy', wrappers=wrapper)
+                               distribution_mode=difficulty, wrappers=wrapper)
 
-        eval_env = gym.make(cfg.env, start_level=cfg.num_levels, num_levels=100_000, distribution_mode='easy')
+        eval_env = gym.make(cfg.env, start_level=cfg.num_levels, num_levels=100_000, distribution_mode=difficulty)
         eval_env = eval_wrapper(eval_env)
 
 
