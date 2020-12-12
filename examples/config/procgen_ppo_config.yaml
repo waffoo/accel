@@ -19,3 +19,4 @@ num_levels: 1000 # important
 horizon: 128
 image_demo: False
 demo_outdir: ''
+hard: False
