@@ -17,3 +17,6 @@ replay_start_step: 20_000
 nstep: 1
 adam: True
 end_eps: 0.01
+record: True
+record_outdir: dataset
+record_size: 1_000_000
