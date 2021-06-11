@@ -150,7 +150,8 @@ class SAC:
         self.train_cnt += 1
 
         transitions = self.replay_buffer.sample(self.batch_size)
-        batch = Transition(*zip(*transitions))
+        map_func = lambda x: x[0]
+        batch = Transition(*zip(*map(map_func, transitions)))
 
         state_batch = torch.tensor(
             np.array(batch.state, dtype=np.float32), device=self.device)
