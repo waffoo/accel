@@ -15,14 +15,16 @@ class CriticNet(nn.Module):
         # Q1 architecture
         self.linear1 = nn.Linear(num_inputs + num_actions, hidden_dim)
         self.linear2 = nn.Linear(hidden_dim, hidden_dim)
-        self.linear3 = nn.Linear(hidden_dim, 1)
+        self.linear3 = nn.Linear(hidden_dim, hidden_dim)
+        self.linear4 = nn.Linear(hidden_dim, 1)
 
     def forward(self, state, action):
         xu = torch.cat([state, action], 1)
 
         x1 = F.relu(self.linear1(xu))
         x1 = F.relu(self.linear2(x1))
-        return self.linear3(x1)
+        x1 = F.relu(self.linear3(x1))
+        return self.linear4(x1)
 
 
 class ActorNet(torch.nn.Module):
@@ -30,15 +32,17 @@ class ActorNet(torch.nn.Module):
         super().__init__()
         self.fc1 = nn.Linear(n_input, n_hidden)
         self.fc2 = nn.Linear(n_hidden, n_hidden)
+        self.fc3 = nn.Linear(n_hidden, n_hidden)
 
-        self.fc3 = nn.Linear(n_hidden, n_output)
         self.fc4 = nn.Linear(n_hidden, n_output)
+        self.fc5 = nn.Linear(n_hidden, n_output)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        mean = self.fc3(x)
-        log_std = torch.clamp(self.fc4(x), -20, 2)
+        x = F.relu(self.fc3(x))
+        mean = self.fc4(x)
+        log_std = torch.clamp(self.fc5(x), -20, 2)  # -5?
         return mean, log_std
 
 

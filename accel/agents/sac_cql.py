@@ -4,10 +4,16 @@ import time
 
 import torch
 import torch.nn.functional as F
+from torch.distributions import Normal
 import numpy as np
 from PIL import Image
 from accel.agents.sac import SAC
 from accel.replay_buffers.replay_buffer import Transition
+
+def atanh(x):
+    one_plus_x = (1 + x).clamp(min=1e-6)
+    one_minus_x = (1 - x).clamp(min=1e-6)
+    return 0.5*torch.log(one_plus_x/ one_minus_x)
 
 class OfflineSAC(SAC):
     def __init__(self, eval_env,
@@ -209,12 +215,13 @@ class SAC_CQL(OfflineSAC):
     def __init__(self, eval_env,
                  outdir,  # e.g. timestamp/results
                  cql_weight,
+                 policy_eval_start,
                  # sac params
                  device,
                  observation_space,
                  action_space,
                  gamma, replay_buffer, tau=0.005,
-                 actor_lr=3e-5,
+                 actor_lr=1e-4,
                  critic_lr=3e-4,
                  batch_size=256,
                  update_interval=1,
@@ -235,6 +242,7 @@ class SAC_CQL(OfflineSAC):
                          load=load)
 
         self.cql_weight = cql_weight  # cql alpha
+        self.policy_eval_start = policy_eval_start
 
     def train(self):
         # copy and paste
@@ -270,8 +278,10 @@ class SAC_CQL(OfflineSAC):
         random_actions = torch.FloatTensor(q2_data.shape[0] * num_random, action_batch.shape[-1]).uniform_(-1, 1).to(self.device)
         current_states = state_batch.unsqueeze(1).repeat(1, num_random, 1).view(-1, state_batch.shape[-1])
         current_actions, current_logpis, _ = self.try_act(current_states)
+        current_actions, current_logpis = current_actions.detach(), current_logpis.detach()
         next_states = next_state_batch.unsqueeze(1).repeat(1, num_random, 1).view(-1, state_batch.shape[-1])
         next_actions, next_logpis, _ = self.try_act(next_states)
+        next_actions, next_logpis = next_actions.detach(), next_logpis.detach()
 
         q1_rand = self.critic1(current_states, random_actions).view(-1, num_random)
         q2_rand = self.critic2(current_states, random_actions).view(-1, num_random)
@@ -310,6 +320,17 @@ class SAC_CQL(OfflineSAC):
         min_qf_pi = torch.min(qf1_pi, qf2_pi)
 
         policy_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+
+        if self.total_steps < self.policy_eval_start:
+            raw_action = atanh(action_batch)
+            mean, log_std = self.actor(state_batch)
+            normal = Normal(mean, log_std.exp())
+            eps = 1e-6
+            logprob = (normal.log_prob(raw_action)
+                      - torch.log(1 - action_batch.pow(2) + eps))
+            logprob = logprob.sum(1, keepdims=True)
+
+            policy_loss = ((self.alpha * log_pi) - logprob).mean()
 
         self.actor_optim.zero_grad()
         policy_loss.backward()

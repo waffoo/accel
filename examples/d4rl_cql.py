@@ -36,7 +36,8 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(device)
 
 memory = ReplayBuffer(capacity=10**6)  # assert nstep=1
-agent = SAC_CQL(eval_env=env, outdir='gym-results', cql_weight=5., device=device, observation_space=env.observation_space, action_space=env.action_space,
+agent = SAC_CQL(eval_env=env, outdir='gym-results', cql_weight=5., policy_eval_start=0,
+                device=device, observation_space=env.observation_space, action_space=env.action_space,
                 gamma=.99, replay_buffer=memory, update_interval=1, load=args.load)
 agent.set_dataset(dataset)
 
