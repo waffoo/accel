@@ -21,7 +21,8 @@ parser.add_argument('--demo', action='store_true',
                     help='demo flag')
 args = parser.parse_args()
 
-env = gym.make('walker2d-medium-expert-v0')
+# env = gym.make('walker2d-medium-expert-v0')
+env = gym.make('hopper-expert-v0')
 dataset = env.get_dataset()
 #actions, observations, rewards, terminals, timeouts
 # d4rl.qlearning_dataset(env)
@@ -35,13 +36,12 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(device)
 
 memory = ReplayBuffer(capacity=10**6)  # assert nstep=1
-agent = SAC_CQL(eval_env=env, outdir='gym-results', device=device, observation_space=env.observation_space, action_space=env.action_space,
+agent = SAC_CQL(eval_env=env, outdir='gym-results', cql_weight=5., device=device, observation_space=env.observation_space, action_space=env.action_space,
                 gamma=.99, replay_buffer=memory, update_interval=1, load=args.load)
-agent.set_dataset(dataset, 100_000)
+agent.set_dataset(dataset)
 
 num_steps = 5 * 10**6
 eval_interval = 5 * 10**3
-initial_random_steps = 10**4
 
 agent.fit(num_steps, eval_interval)
 

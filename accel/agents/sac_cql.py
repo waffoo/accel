@@ -17,7 +17,8 @@ class OfflineSAC(SAC):
                  observation_space,
                  action_space,
                  gamma, replay_buffer, tau=0.005,
-                 lr=3e-4,
+                 actor_lr=3e-4,
+                 critic_lr=3e-4,
                  batch_size=256,
                  update_interval=1,
                  target_update_interval=1,
@@ -26,7 +27,8 @@ class OfflineSAC(SAC):
                  observation_space,
                  action_space,
                  gamma, replay_buffer, tau=tau,
-                 lr=lr,
+                 actor_lr=actor_lr,
+                 critic_lr=critic_lr,
                  batch_size=batch_size,
                  update_interval=update_interval,
                  target_update_interval=target_update_interval,
@@ -206,12 +208,14 @@ class OfflineSAC(SAC):
 class SAC_CQL(OfflineSAC):
     def __init__(self, eval_env,
                  outdir,  # e.g. timestamp/results
+                 cql_weight,
                  # sac params
                  device,
                  observation_space,
                  action_space,
                  gamma, replay_buffer, tau=0.005,
-                 lr=3e-4,
+                 actor_lr=3e-5,
+                 critic_lr=3e-4,
                  batch_size=256,
                  update_interval=1,
                  target_update_interval=1,
@@ -223,11 +227,14 @@ class SAC_CQL(OfflineSAC):
                          observation_space,
                          action_space,
                          gamma, replay_buffer, tau=tau,
-                         lr=lr,
+                         actor_lr=actor_lr,
+                         critic_lr=critic_lr,
                          batch_size=batch_size,
                          update_interval=update_interval,
                          target_update_interval=target_update_interval,
                          load=load)
+
+        self.cql_weight = cql_weight  # cql alpha
 
     def train(self):
         # copy and paste
@@ -254,11 +261,42 @@ class SAC_CQL(OfflineSAC):
 
         target_q = self.calc_target_q(
             state_batch, action_batch, reward_batch, next_state_batch, valid_batch)
-        q1 = self.critic1(state_batch, action_batch)
-        q2 = self.critic2(state_batch, action_batch)
-        q1_loss = F.mse_loss(q1, target_q)
-        q2_loss = F.mse_loss(q2, target_q)
+        q1_data = self.critic1(state_batch, action_batch)
+        q2_data = self.critic2(state_batch, action_batch)
+        q1_mse_loss = F.mse_loss(q1_data, target_q)
+        q2_mse_loss = F.mse_loss(q2_data, target_q)
+
+        num_random = 10
+        random_actions = torch.FloatTensor(q2_data.shape[0] * num_random, action_batch.shape[-1]).uniform_(-1, 1).to(self.device)
+        current_states = state_batch.unsqueeze(1).repeat(1, num_random, 1).view(-1, state_batch.shape[-1])
+        current_actions, current_logpis, _ = self.try_act(current_states)
+        next_states = next_state_batch.unsqueeze(1).repeat(1, num_random, 1).view(-1, state_batch.shape[-1])
+        next_actions, next_logpis, _ = self.try_act(next_states)
+
+        q1_rand = self.critic1(current_states, random_actions).view(-1, num_random)
+        q2_rand = self.critic2(current_states, random_actions).view(-1, num_random)
+        q1_curr = self.critic1(current_states, current_actions).view(-1, num_random)
+        q2_curr = self.critic2(current_states, current_actions).view(-1, num_random)
+        q1_next = self.critic1(current_states, next_actions).view(-1, num_random)
+        q2_next = self.critic2(current_states, next_actions).view(-1, num_random)
+        current_logpis = current_logpis.view(-1, num_random)
+        next_logpis = next_logpis.view(-1, num_random)
+
+        random_density = np.log(0.5 ** current_actions.shape[-1])
+        cat_q1 = torch.cat([q1_rand - random_density,
+                            q1_curr - current_logpis.detach(),
+                            q1_next - next_logpis.detach()], 1)
+        cat_q2 = torch.cat([q2_rand - random_density,
+                            q2_curr - current_logpis.detach(),
+                            q2_next - next_logpis.detach()], 1)
+
+        cql_loss1 = (torch.logsumexp(cat_q1, dim=1, keepdim=True) - q1_data).mean()
+        cql_loss2 = (torch.logsumexp(cat_q2, dim=1, keepdim=True) - q2_data).mean()
+
+        q1_loss = q1_mse_loss + self.cql_weight * cql_loss1
+        q2_loss = q2_mse_loss + self.cql_weight * cql_loss2
         q_loss = q1_loss + q2_loss
+
         self.q1_optim.zero_grad()
         self.q2_optim.zero_grad()
         q_loss.backward()
