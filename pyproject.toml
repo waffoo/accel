@@ -6,6 +6,7 @@ authors = ["waffoo <mukuwaffle@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "3.8"
+torch = "^1.6.0"
 opencv-python = "^4.2.0"
 pytest = "^6.0.2"
 
