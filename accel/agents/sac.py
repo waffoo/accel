@@ -47,7 +47,8 @@ class SAC:
                  observation_space,
                  action_space,
                  gamma, replay_buffer, tau=0.005,
-                 lr=3e-4,
+                 actor_lr=3e-4,
+                 critic_lr=3e-4,
                  batch_size=256,
                  update_interval=1,
                  target_update_interval=1,
@@ -68,9 +69,9 @@ class SAC:
             self.actor.load_state_dict(torch.load(
                 f'{load}/pi.model', map_location=device))
 
-        self.q1_optim = Adam(self.critic1.parameters(), lr=lr)
-        self.q2_optim = Adam(self.critic2.parameters(), lr=lr)
-        self.actor_optim = Adam(self.actor.parameters(), lr=lr)
+        self.q1_optim = Adam(self.critic1.parameters(), lr=critic_lr)
+        self.q2_optim = Adam(self.critic2.parameters(), lr=critic_lr)
+        self.actor_optim = Adam(self.actor.parameters(), lr=actor_lr)
 
         self.target_critic1 = copy.deepcopy(self.critic1).to(device)
         self.target_critic2 = copy.deepcopy(self.critic2).to(device)
@@ -93,7 +94,7 @@ class SAC:
 
         self.log_alpha = torch.zeros(1, requires_grad=True, device=device)
         self.alpha = 0.2
-        self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=3e-4)
+        self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=actor_lr)
 
         self.tau = tau
         self.batch_size = batch_size
