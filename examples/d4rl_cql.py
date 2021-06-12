@@ -37,7 +37,7 @@ print(device)
 memory = ReplayBuffer(capacity=10**6)  # assert nstep=1
 agent = SAC_CQL(eval_env=env, outdir='gym-results', device=device, observation_space=env.observation_space, action_space=env.action_space,
                 gamma=.99, replay_buffer=memory, update_interval=1, load=args.load)
-agent.set_dataset(dataset)
+agent.set_dataset(dataset, 100_000)
 
 num_steps = 5 * 10**6
 eval_interval = 5 * 10**3

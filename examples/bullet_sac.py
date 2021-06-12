@@ -70,7 +70,7 @@ if args.demo:
 
 num_steps = 5 * 10**6
 eval_interval = 5 * 10**3
-initial_random_steps = 10**4
+initial_random_steps = 10**3
 
 next_eval_cnt = 1
 episode_cnt = 0
