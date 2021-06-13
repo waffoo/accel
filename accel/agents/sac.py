@@ -15,14 +15,16 @@ class CriticNet(nn.Module):
         # Q1 architecture
         self.linear1 = nn.Linear(num_inputs + num_actions, hidden_dim)
         self.linear2 = nn.Linear(hidden_dim, hidden_dim)
-        self.linear3 = nn.Linear(hidden_dim, 1)
+        self.linear3 = nn.Linear(hidden_dim, hidden_dim)
+        self.linear4 = nn.Linear(hidden_dim, 1)
 
     def forward(self, state, action):
         xu = torch.cat([state, action], 1)
 
         x1 = F.relu(self.linear1(xu))
         x1 = F.relu(self.linear2(x1))
-        return self.linear3(x1)
+        x1 = F.relu(self.linear3(x1))
+        return self.linear4(x1)
 
 
 class ActorNet(torch.nn.Module):
@@ -30,15 +32,17 @@ class ActorNet(torch.nn.Module):
         super().__init__()
         self.fc1 = nn.Linear(n_input, n_hidden)
         self.fc2 = nn.Linear(n_hidden, n_hidden)
+        self.fc3 = nn.Linear(n_hidden, n_hidden)
 
-        self.fc3 = nn.Linear(n_hidden, n_output)
         self.fc4 = nn.Linear(n_hidden, n_output)
+        self.fc5 = nn.Linear(n_hidden, n_output)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        mean = self.fc3(x)
-        log_std = torch.clamp(self.fc4(x), -20, 2)
+        x = F.relu(self.fc3(x))
+        mean = self.fc4(x)
+        log_std = torch.clamp(self.fc5(x), -20, 2)  # -5?
         return mean, log_std
 
 
@@ -47,7 +51,8 @@ class SAC:
                  observation_space,
                  action_space,
                  gamma, replay_buffer, tau=0.005,
-                 lr=3e-4,
+                 actor_lr=3e-4,
+                 critic_lr=3e-4,
                  batch_size=256,
                  update_interval=1,
                  target_update_interval=1,
@@ -68,9 +73,9 @@ class SAC:
             self.actor.load_state_dict(torch.load(
                 f'{load}/pi.model', map_location=device))
 
-        self.q1_optim = Adam(self.critic1.parameters(), lr=lr)
-        self.q2_optim = Adam(self.critic2.parameters(), lr=lr)
-        self.actor_optim = Adam(self.actor.parameters(), lr=lr)
+        self.q1_optim = Adam(self.critic1.parameters(), lr=critic_lr)
+        self.q2_optim = Adam(self.critic2.parameters(), lr=critic_lr)
+        self.actor_optim = Adam(self.actor.parameters(), lr=actor_lr)
 
         self.target_critic1 = copy.deepcopy(self.critic1).to(device)
         self.target_critic2 = copy.deepcopy(self.critic2).to(device)
@@ -93,7 +98,7 @@ class SAC:
 
         self.log_alpha = torch.zeros(1, requires_grad=True, device=device)
         self.alpha = 0.2
-        self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=3e-4)
+        self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=actor_lr)
 
         self.tau = tau
         self.batch_size = batch_size
@@ -150,7 +155,8 @@ class SAC:
         self.train_cnt += 1
 
         transitions = self.replay_buffer.sample(self.batch_size)
-        batch = Transition(*zip(*transitions))
+        map_func = lambda x: x[0]
+        batch = Transition(*zip(*map(map_func, transitions)))
 
         state_batch = torch.tensor(
             np.array(batch.state, dtype=np.float32), device=self.device)

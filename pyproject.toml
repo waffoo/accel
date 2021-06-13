@@ -5,17 +5,19 @@ description = ""
 authors = ["waffoo <mukuwaffle@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.7"
-opencv-python = "^4.2.0"
+python = "3.8"
 torch = "^1.6.0"
+opencv-python = "^4.2.0"
 pytest = "^6.0.2"
+scikit-learn = "^0.24.2"
+typing-extensions = "^3.10.0"
 
 [tool.poetry.dev-dependencies]
 mlflow = "^1.11.0"
 pybullet = "^3.0.4"
 hydra-core = "^1.0.3"
 gym = "^0.17.2"
-atari-py = "^0.2.6"
+atari-py = "0.2.6"
 procgen = "^0.10.4"
 
 [build-system]

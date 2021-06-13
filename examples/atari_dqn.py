@@ -66,7 +66,7 @@ class RamNet(nn.Module):
         return self.fc4(x)
 
 
-@hydra.main(config_name='config/atari_dqn_config.yaml')
+@hydra.main(config_path='config', config_name='atari_dqn_config')
 def main(cfg):
     set_seed(cfg.seed)
 
@@ -135,7 +135,8 @@ def main(cfg):
         if cfg.prioritized:
             memory = PrioritizedReplayBuffer(capacity=cfg.replay_capacity, beta_steps=cfg.steps - cfg.replay_start_step, nstep=cfg.nstep)
         else:
-            memory = ReplayBuffer(capacity=cfg.replay_capacity, nstep=cfg.nstep)
+            memory = ReplayBuffer(capacity=cfg.replay_capacity, nstep=cfg.nstep, record=True, record_size=cfg.record_size,
+                                  record_outdir=os.path.join(cwd, cfg.record_outdir, cfg.name))
 
         score_steps = []
         scores = []

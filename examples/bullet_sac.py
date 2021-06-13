@@ -42,7 +42,7 @@ n_actions = len(env.action_space.low)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-memory = ReplayBuffer(capacity=10**6)
+memory = ReplayBuffer(capacity=10**6)  # assert nstep=1
 
 agent = SAC(device=device, observation_space=env.observation_space, action_space=env.action_space, gamma=0.99,
             replay_buffer=memory, update_interval=1, load=args.load)
@@ -70,7 +70,7 @@ if args.demo:
 
 num_steps = 5 * 10**6
 eval_interval = 5 * 10**3
-initial_random_steps = 10**4
+initial_random_steps = 10**3
 
 next_eval_cnt = 1
 episode_cnt = 0

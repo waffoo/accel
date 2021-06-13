@@ -135,3 +135,5 @@ results/
 movie/
 outputs/
 mlruns/
+gym-results/
+dataset/
