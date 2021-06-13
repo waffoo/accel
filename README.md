@@ -18,7 +18,10 @@ $ pip install .
 Following algorithms have been implemented:
 - [DQN](https://web.stanford.edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf)
   (including [Double DQN](https://arxiv.org/abs/1509.06461), [Dueling DQN](https://arxiv.org/abs/1511.06581), [Prioritized Experience Replay](https://arxiv.org/abs/1511.05952), and Multi-step DQN)
-- [Soft Actor-Critic](https://arxiv.org/abs/1801.01290)
+- [Soft Actor-Critic (SAC)](https://arxiv.org/abs/1801.01290)
+- Behavioral Chroning (BC)
+  - Only examples are provided
+- [Conservative Q-Learning (CQL)](https://arxiv.org/abs/2006.04779) (+ Double DQN, SAC)
 
 ## Lisense
 [MIT License](LICENSE)
