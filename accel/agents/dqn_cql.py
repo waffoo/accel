@@ -152,7 +152,7 @@ class OfflineDQN(DQN):
         ac = dataset['action']
         ne = np.concatenate((ob[1:], ob[-1:]))
         re = dataset['reward']
-        va = ~(dataset['terminal'])
+        va = 1 - dataset['terminal']
 
         if num is not None:
             ob, ac, ne, re, va = ob[:num], ac[:num], ne[:num], re[:num], va[:num]
