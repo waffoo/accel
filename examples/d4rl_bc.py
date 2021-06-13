@@ -5,7 +5,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split
-from subprocess import call
 from os import system
 
 
@@ -26,8 +25,6 @@ class BCNet(nn.Module):
 
 env = gym.make('walker2d-medium-expert-v0')
 dataset = env.get_dataset()
-#actions, observations, rewards, terminals, timeouts
-# d4rl.qlearning_dataset(env)
 
 observations, actions = dataset['observations'], dataset['actions']
 

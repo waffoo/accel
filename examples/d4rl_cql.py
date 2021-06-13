@@ -1,11 +1,5 @@
 import gym
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset
-from sklearn.model_selection import train_test_split
-from subprocess import call
-from os import system
 from accel.agents.sac_cql import SAC_CQL
 import argparse
 from accel.replay_buffers.replay_buffer import ReplayBuffer
@@ -21,16 +15,8 @@ parser.add_argument('--demo', action='store_true',
                     help='demo flag')
 args = parser.parse_args()
 
-# env = gym.make('walker2d-medium-expert-v0')
 env = gym.make('hopper-expert-v0')
 dataset = env.get_dataset()
-#actions, observations, rewards, terminals, timeouts
-# d4rl.qlearning_dataset(env)
-
-# observations, actions = dataset['observations'], dataset['actions']
-
-# observations = torch.tensor(observations)
-# actions = torch.tensor(actions)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(device)

@@ -174,7 +174,7 @@ class OfflineDQN(DQN):
         self.train_start_time = time.time()
 
         while self.total_steps < steps:
-            self.train()  # TODO: really train?
+            self.train()
             if self.total_steps >= next_eval_cnt * eval_interval:
                 self.eval()
                 next_eval_cnt += 1
