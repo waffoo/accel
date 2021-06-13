@@ -142,10 +142,12 @@ def main(cfg):
             start_eps=1.0, end_eps=cfg.end_eps, decay_steps=1e6)
 
         outdir = os.path.join(cwd, 'results', cfg.name)
-        agent = dqn_cql.OfflineDoubleDQN(eval_env, outdir, q_func, optimizer, memory, cfg.gamma,
-                              explorer, cfg.device, batch_size=32,
-                              target_update_interval=10000,
-                              replay_start_step=cfg.replay_start_step)
+        agent = dqn_cql.DQN_CQL(eval_env=eval_env, outdir=outdir, cql_weight=4.,
+                                q_func=q_func, optimizer=optimizer,
+                                replay_buffer=memory, gamma=cfg.gamma,
+                                explorer=explorer, device=cfg.device, batch_size=32,
+                                target_update_interval=10000,
+                                replay_start_step=cfg.replay_start_step)
 
         data_path = os.path.join(cwd, 'dataset', 'pong-1s', '9.npz')
         print(f'open {data_path}...')
