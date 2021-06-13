@@ -84,72 +84,11 @@ class OfflineSAC(SAC):
         self.train_start_time = time.time()
 
         while self.total_steps < steps:
+            self.total_steps += 1
             self.train()
             if self.total_steps >= next_eval_cnt * eval_interval:
                 self.eval()
                 next_eval_cnt += 1
-
-    def train(self):
-        # copy and paste
-        if len(self.replay_buffer) < self.batch_size:
-            return
-
-        self.train_cnt += 1
-        self.total_steps = self.train_cnt
-
-        transitions = self.replay_buffer.sample(self.batch_size)
-        map_func = lambda x: x[0]
-        batch = Transition(*zip(*map(map_func, transitions)))
-
-        state_batch = torch.tensor(
-            np.array(batch.state, dtype=np.float32), device=self.device)
-        action_batch = torch.tensor(
-            np.array(batch.action, dtype=np.float32), device=self.device)
-        next_state_batch = torch.tensor(
-            np.array(batch.next_state, dtype=np.float32), device=self.device)
-        reward_batch = torch.tensor(
-            np.array(batch.reward, dtype=np.float32), device=self.device).unsqueeze(1)
-        valid_batch = torch.tensor(
-            np.array(batch.valid, dtype=np.float32), device=self.device).unsqueeze(1)
-
-        target_q = self.calc_target_q(
-            state_batch, action_batch, reward_batch, next_state_batch, valid_batch)
-        q1 = self.critic1(state_batch, action_batch)
-        q2 = self.critic2(state_batch, action_batch)
-        q1_loss = F.mse_loss(q1, target_q)
-        q2_loss = F.mse_loss(q2, target_q)
-        q_loss = q1_loss + q2_loss
-        self.q1_optim.zero_grad()
-        self.q2_optim.zero_grad()
-        q_loss.backward()
-        self.q1_optim.step()
-        self.q2_optim.step()
-
-        pi, log_pi, _ = self.try_act(state_batch)
-
-        qf1_pi = self.critic1(state_batch, pi)
-        qf2_pi = self.critic2(state_batch, pi)
-        min_qf_pi = torch.min(qf1_pi, qf2_pi)
-
-        policy_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
-
-        self.actor_optim.zero_grad()
-        policy_loss.backward()
-        self.actor_optim.step()
-
-        # adjust alpha
-        alpha_loss = -(self.log_alpha *
-                       (self.target_entropy + log_pi).detach()).mean()
-
-        self.alpha_optim.zero_grad()
-        alpha_loss.backward()
-        self.alpha_optim.step()
-        self.alpha = self.log_alpha.exp()
-
-        if self.train_cnt % self.target_update_interval == 0:
-            self.soft_update(self.target_critic1, self.critic1)
-            self.soft_update(self.target_critic2, self.critic2)
-            self.prev_target_update_time = self.total_steps
 
     def eval(self, render=False):
         total_reward = 0

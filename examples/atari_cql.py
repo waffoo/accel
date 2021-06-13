@@ -10,7 +10,7 @@ import hydra
 import mlflow
 import os
 
-from accel.utils.atari_wrappers import make_atari, make_atari_ram
+from accel.utils.atari_wrappers import make_atari
 from accel.explorers import epsilon_greedy
 from accel.replay_buffers.replay_buffer import Transition, ReplayBuffer
 from accel.replay_buffers.prioritized_replay_buffer import PrioritizedReplayBuffer
@@ -50,22 +50,6 @@ class Net(nn.Module):
         return v + adv - adv.mean(dim=1, keepdim=True)
 
 
-class RamNet(nn.Module):
-    def __init__(self, input, output):
-        super().__init__()
-        self.fc1 = nn.Linear(input, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, 64)
-        self.fc4 = nn.Linear(64, output)
-
-    def forward(self, x):
-        x = x / 255.
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = F.relu(self.fc3(x))
-        return self.fc4(x)
-
-
 @hydra.main(config_path='config', config_name='atari_cql_config')
 def main(cfg):
     set_seed(cfg.seed)
@@ -75,8 +59,6 @@ def main(cfg):
     mlflow.set_experiment('atari_dqn')
 
     with mlflow.start_run(run_name=cfg.name):
-        is_ram = '-ram' in cfg.env
-
         mlflow.log_param('seed', cfg.seed)
         mlflow.log_param('gamma', cfg.gamma)
         mlflow.log_param('replay', cfg.replay_capacity)
@@ -86,7 +68,6 @@ def main(cfg):
         mlflow.log_param('high', cfg.high_reso)
         mlflow.log_param('no_stack', cfg.no_stack)
         mlflow.log_param('nstep', cfg.nstep)
-        mlflow.log_param('ram', is_ram)
         mlflow.log_param('adam', cfg.adam)
         mlflow.log_param('end_eps', cfg.end_eps)
         mlflow.set_tag('env', cfg.env)
@@ -94,20 +75,16 @@ def main(cfg):
         if not cfg.device:
             cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-        if is_ram:
-            env = make_atari_ram(cfg.env)
-            eval_env = make_atari_ram(cfg.env, clip_rewards=False)
+        if cfg.high_reso:
+            env = make_atari(cfg.env, color=cfg.color,
+                             image_size=128, frame_stack=not cfg.no_stack)
+            eval_env = make_atari(
+                cfg.env, clip_rewards=False, color=cfg.color, image_size=128, frame_stack=not cfg.no_stack)
         else:
-            if cfg.high_reso:
-                env = make_atari(cfg.env, color=cfg.color,
-                                 image_size=128, frame_stack=not cfg.no_stack)
-                eval_env = make_atari(
-                    cfg.env, clip_rewards=False, color=cfg.color, image_size=128, frame_stack=not cfg.no_stack)
-            else:
-                env = make_atari(cfg.env, color=cfg.color,
-                                 frame_stack=not cfg.no_stack)
-                eval_env = make_atari(
-                    cfg.env, clip_rewards=False, color=cfg.color, frame_stack=not cfg.no_stack)
+            env = make_atari(cfg.env, color=cfg.color,
+                             frame_stack=not cfg.no_stack)
+            eval_env = make_atari(
+                cfg.env, clip_rewards=False, color=cfg.color, frame_stack=not cfg.no_stack)
 
         env.seed(cfg.seed)
         eval_env.seed(cfg.seed)
@@ -115,11 +92,8 @@ def main(cfg):
         dim_state = env.observation_space.shape[0]
         dim_action = env.action_space.n
 
-        if is_ram:
-            q_func = RamNet(dim_state, dim_action)
-        else:
-            q_func = Net(dim_state, dim_action,
-                         dueling=cfg.dueling, high_reso=cfg.high_reso)
+        q_func = Net(dim_state, dim_action,
+                     dueling=cfg.dueling, high_reso=cfg.high_reso)
 
         if cfg.load:
             q_func.load_state_dict(torch.load(os.path.join(
