@@ -1,18 +1,18 @@
 import os
+import time
+from collections import namedtuple
+
+import mlflow
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from collections import namedtuple
-from torch.utils.data import DataLoader
-import numpy as np
 import torch.optim as optim
-import time
-import mlflow
-
-from accel.replay_buffers.rollout_buffer import RolloutBuffer, Transition
 from torch.distributions import Categorical
-from accel.explorers.epsilon_greedy import LinearDecayEpsilonGreedy
+from torch.utils.data import DataLoader
 
+from accel.explorers.epsilon_greedy import LinearDecayEpsilonGreedy
+from accel.replay_buffers.rollout_buffer import RolloutBuffer, Transition
 
 
 class PPO:
@@ -46,15 +46,18 @@ class PPO:
 
         self.actor = actor.to(device)
         self.critic = critic.to(device)
-        self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr, eps=1e-5)
+        self.optimizer = optim.Adam(
+            list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr, eps=1e-5)
 
         # TODO detach scheduler from epsilon greedy
-        self.lr_scheduler = LinearDecayEpsilonGreedy(start_eps=1, end_eps=0.01, decay_steps=self.steps)
+        self.lr_scheduler = LinearDecayEpsilonGreedy(
+            start_eps=1, end_eps=0.01, decay_steps=self.steps)
 
         if load:
-            self.actor.load_state_dict(torch.load(f'{load}/actor.model', map_location=device))
-            self.critic.load_state_dict(torch.load(f'{load}/critic.model', map_location=device))
-
+            self.actor.load_state_dict(torch.load(
+                f'{load}/actor.model', map_location=device))
+            self.critic.load_state_dict(torch.load(
+                f'{load}/critic.model', map_location=device))
 
     def act(self, obs, greedy=False):
         pass
@@ -80,7 +83,8 @@ class PPO:
             self.critic.eval()
             self.actor.eval()
             for i in range(self.horizon):
-                obs_tensor = torch.tensor(obs, dtype=torch.float32).to(self.device)
+                obs_tensor = torch.tensor(
+                    obs, dtype=torch.float32).to(self.device)
 
                 with torch.no_grad():
                     action_logits = self.actor(obs_tensor)
@@ -90,10 +94,12 @@ class PPO:
                 actions = actions.cpu().numpy()
                 next_obs, reward, done, info = self.envs.step(actions)
 
-                transition = Transition(obs, actions, next_obs, reward, ~done, log_prob)
+                transition = Transition(
+                    obs, actions, next_obs, reward, ~done, log_prob)
 
                 with torch.no_grad():
-                    values = self.critic(obs_tensor).flatten().detach().cpu().numpy()
+                    values = self.critic(
+                        obs_tensor).flatten().detach().cpu().numpy()
                 buffer.push(transition, values)
 
                 obs = next_obs
@@ -102,7 +108,8 @@ class PPO:
 
             obs_tensor = torch.tensor(obs, dtype=torch.float32).to(self.device)
             with torch.no_grad():
-                values = self.critic(obs_tensor).flatten().detach().cpu().numpy()
+                values = self.critic(
+                    obs_tensor).flatten().detach().cpu().numpy()
 
             # compute advantage estimates A_t using GAE
             buffer.final_state_value(values)
@@ -112,7 +119,8 @@ class PPO:
                 pg['lr'] = next_lr
 
             dataset = buffer.create_dataset()
-            dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+            dataloader = DataLoader(
+                dataset, batch_size=self.batch_size, shuffle=True)
 
             value_loss_epoch = 0.
             actor_loss_epoch = 0.
@@ -122,7 +130,8 @@ class PPO:
             self.critic.train()
             self.actor.train()
             for _ in range(self.epoch_per_update):
-                for (ob_, ret_, ac_, log_prob_old_, gae_, value_) in dataloader:
+                for (ob_, ret_, ac_, log_prob_old_,
+                     gae_, value_) in dataloader:
                     added_cnt += 1
                     ob_, ac_ = ob_.to(self.device), ac_.to(self.device)
                     log_prob_old_ = log_prob_old_.to(self.device)
@@ -136,7 +145,8 @@ class PPO:
                     ratio = torch.exp(log_prob - log_prob_old_)
 
                     surr1 = ratio * gae_
-                    surr2 = torch.clip(ratio, 1-self.clip_eps, 1+self.clip_eps) * gae_
+                    surr2 = torch.clip(ratio, 1 - self.clip_eps,
+                                       1 + self.clip_eps) * gae_
 
                     # minus means "ascent"
                     actor_loss = -torch.min(surr1, surr2).mean()
@@ -146,18 +156,19 @@ class PPO:
                     pred = self.critic(ob_).flatten()
 
                     if self.value_clipping:
-                        clipped_pred = value_ + (pred - value_).clamp(-self.clip_eps, self.clip_eps)
+                        clipped_pred = value_ + \
+                            (pred - value_).clamp(-self.clip_eps, self.clip_eps)
 
                         value_loss = (pred - ret_).pow(2)
                         clipped_value_loss = (clipped_pred - ret_).pow(2)
-                        value_loss = torch.max(value_loss, clipped_value_loss).mean() / 2
+                        value_loss = torch.max(
+                            value_loss, clipped_value_loss).mean() / 2
 
                     else:
                         value_loss = F.mse_loss(pred, ret_) / 2
 
-
-
-                    loss = value_loss * self.value_loss_coef + actor_loss - entropy_bonus * self.entropy_coef
+                    loss = value_loss * self.value_loss_coef + \
+                        actor_loss - entropy_bonus * self.entropy_coef
 
                     self.optimizer.zero_grad()
                     loss.backward()
@@ -173,14 +184,16 @@ class PPO:
             actor_loss_epoch /= added_cnt
             entropy_bonus_epoch /= added_cnt
 
-
             self.critic.eval()
             self.actor.eval()
 
             if self.elapsed_step >= self.next_eval_cnt * self.eval_interval:
-                mlflow.log_metric('value_loss', value_loss_epoch, step=self.elapsed_step)
-                mlflow.log_metric('actor_loss', actor_loss_epoch, step=self.elapsed_step)
-                mlflow.log_metric('entropy_bonus', entropy_bonus_epoch, step=self.elapsed_step)
+                mlflow.log_metric(
+                    'value_loss', value_loss_epoch, step=self.elapsed_step)
+                mlflow.log_metric(
+                    'actor_loss', actor_loss_epoch, step=self.elapsed_step)
+                mlflow.log_metric(
+                    'entropy_bonus', entropy_bonus_epoch, step=self.elapsed_step)
 
                 self.evaluate()
 
@@ -201,7 +214,8 @@ class PPO:
                 obs = self.eval_env.reset()
 
                 while not done:
-                    obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(self.device)
+                    obs_tensor = torch.tensor(
+                        obs, dtype=torch.float32).unsqueeze(0).to(self.device)
                     with torch.no_grad():
                         action_logits = self.actor(obs_tensor)
                     dist = Categorical(logits=action_logits)

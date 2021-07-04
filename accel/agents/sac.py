@@ -1,10 +1,12 @@
-import torch
-from torch.distributions import Normal
-import numpy as np
-import torch.nn as nn
 import copy
+
+import numpy as np
+import torch
+import torch.nn as nn
 import torch.nn.functional as F
+from torch.distributions import Normal
 from torch.optim import Adam
+
 from accel.replay_buffers.replay_buffer import Transition
 
 
@@ -125,7 +127,7 @@ class SAC:
         # enforcing bound
         eps = 1e-6
         log_pi = (normal.log_prob(x_t) -
-                  torch.log(self.action_scale * (1-y_t.pow(2)) + eps)).sum(1, keepdim=True)
+                  torch.log(self.action_scale * (1 - y_t.pow(2)) + eps)).sum(1, keepdim=True)
         mean = torch.tanh(mean) * self.action_scale + self.action_bias
 
         return action, log_pi, mean
@@ -155,7 +157,9 @@ class SAC:
         self.train_cnt += 1
 
         transitions = self.replay_buffer.sample(self.batch_size)
-        map_func = lambda x: x[0]
+
+        def map_func(x):
+            return x[0]
         batch = Transition(*zip(*map(map_func, transitions)))
 
         state_batch = torch.tensor(

@@ -19,7 +19,8 @@ class BinaryTree:
         right = left + 1
 
         left_val = self.tree[left]
-        right_val = self.tree[right] if right < len(self.tree) else self.initial_value
+        right_val = self.tree[right] if right < len(
+            self.tree) else self.initial_value
         self.tree[parent] = self.operator(left_val, right_val)
 
         if parent != 0:
@@ -61,4 +62,3 @@ class SumTree(BinaryTree):
 class MinTree(BinaryTree):
     def __init__(self, capacity):
         super().__init__(capacity, min, float('inf'))
-

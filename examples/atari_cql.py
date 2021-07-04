@@ -1,20 +1,22 @@
+import os
 from time import time
+
 import gym
+import hydra
+import mlflow
+import numpy as np
 # from gym.utils.play import play import random
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
-import numpy as np
-import hydra
-import mlflow
-import os
+import torch.optim as optim
 
-from accel.utils.atari_wrappers import make_atari
-from accel.explorers import epsilon_greedy
-from accel.replay_buffers.replay_buffer import Transition, ReplayBuffer
-from accel.replay_buffers.prioritized_replay_buffer import PrioritizedReplayBuffer
 from accel.agents import dqn_cql
+from accel.explorers import epsilon_greedy
+from accel.replay_buffers.prioritized_replay_buffer import \
+    PrioritizedReplayBuffer
+from accel.replay_buffers.replay_buffer import ReplayBuffer, Transition
+from accel.utils.atari_wrappers import make_atari
 from accel.utils.utils import set_seed
 
 
@@ -101,13 +103,15 @@ def main(cfg):
 
         if cfg.adam:
             # same as Rainbow
-            optimizer = optim.Adam(q_func.parameters(), lr=0.0000625, eps=1.5e-4)
+            optimizer = optim.Adam(q_func.parameters(),
+                                   lr=0.0000625, eps=1.5e-4)
         else:
             optimizer = optim.RMSprop(
                 q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
 
         if cfg.prioritized:
-            memory = PrioritizedReplayBuffer(capacity=cfg.replay_capacity, beta_steps=cfg.steps - cfg.replay_start_step, nstep=cfg.nstep)
+            memory = PrioritizedReplayBuffer(
+                capacity=cfg.replay_capacity, beta_steps=cfg.steps - cfg.replay_start_step, nstep=cfg.nstep)
         else:
             memory = ReplayBuffer(capacity=cfg.replay_capacity, nstep=cfg.nstep, record=True, record_size=cfg.record_size,
                                   record_outdir=os.path.join(cwd, cfg.record_outdir, cfg.name))

@@ -1,16 +1,18 @@
-import torch
-import numpy as np
 import copy
+import os
+import time
+from os import system
+
+import mlflow
+import numpy as np
+import torch
 import torch.nn.functional as F
 from PIL import Image
 
-from accel.replay_buffers.replay_buffer import Transition
-from accel.replay_buffers.prioritized_replay_buffer import PrioritizedReplayBuffer
-import time
-import os
-from os import system
-import mlflow
 from accel.agents.dqn import DQN
+from accel.replay_buffers.prioritized_replay_buffer import \
+    PrioritizedReplayBuffer
+from accel.replay_buffers.replay_buffer import Transition
 
 
 class OfflineDQN(DQN):
@@ -25,12 +27,12 @@ class OfflineDQN(DQN):
                  replay_start_step=10000,
                  huber=False):
         super().__init__(q_func, optimizer, replay_buffer, gamma, explorer,
-                 device,
-                 batch_size=batch_size,
-                 update_interval=update_interval,
-                 target_update_interval=target_update_interval,
-                 replay_start_step=0,
-                 huber=huber)
+                         device,
+                         batch_size=batch_size,
+                         update_interval=update_interval,
+                         target_update_interval=target_update_interval,
+                         replay_start_step=0,
+                         huber=huber)
 
         self.best_score = -1e10
         self.score_steps = []
@@ -52,7 +54,6 @@ class OfflineDQN(DQN):
         if num is not None:
             ob, ac, ne, re, va = ob[:num], ac[:num], ne[:num], re[:num], va[:num]
 
-
         all_li = list(zip(ob, ac, ne, re, va))
         result = list(map(lambda x: [Transition(*x)], all_li))
         gl = time.time()
@@ -61,7 +62,7 @@ class OfflineDQN(DQN):
 
         self.replay_buffer.memory = result
 
-    def fit(self, steps, eval_interval=5*10**3):
+    def fit(self, steps, eval_interval=5 * 10**3):
         next_eval_cnt = 1
 
         self.total_steps = 0
@@ -145,6 +146,7 @@ class OfflineDoubleDQN(OfflineDQN):
         return self.target_q_func(
             next_states).gather(1, next_action_batch).squeeze().detach()
 
+
 class DQN_CQL(OfflineDoubleDQN):
     def __init__(self, eval_env,
                  outdir,  # e.g. timestamp/results
@@ -159,15 +161,15 @@ class DQN_CQL(OfflineDoubleDQN):
                  huber=False
                  ):
         super().__init__(eval_env,
-                 outdir,  # e.g. timestamp/results
-                 # dqn parameters
-                 q_func, optimizer, replay_buffer, gamma, explorer,
-                 device,
-                 batch_size=batch_size,
-                 update_interval=update_interval,
-                 target_update_interval=target_update_interval,
-                 replay_start_step=replay_start_step,
-                 huber=huber)
+                         outdir,  # e.g. timestamp/results
+                         # dqn parameters
+                         q_func, optimizer, replay_buffer, gamma, explorer,
+                         device,
+                         batch_size=batch_size,
+                         update_interval=update_interval,
+                         target_update_interval=target_update_interval,
+                         replay_start_step=replay_start_step,
+                         huber=huber)
 
         self.cql_weight = cql_weight
 
@@ -176,10 +178,10 @@ class DQN_CQL(OfflineDoubleDQN):
         #     return
 
         if self.prioritized:
-            transitions, idx_batch, weights = self.replay_buffer.sample(self.batch_size)
+            transitions, idx_batch, weights = self.replay_buffer.sample(
+                self.batch_size)
         else:
             transitions = self.replay_buffer.sample(self.batch_size)
-
 
         def f(trans):
             start_state = trans[0].state
@@ -192,10 +194,8 @@ class DQN_CQL(OfflineDoubleDQN):
 
             return Transition(start_state, action, next_state, reward, valid)
 
-
         def extract_steps(trans):
             return len(trans)
-
 
         steps_batch = list(map(extract_steps, transitions))
         transitions = map(f, transitions)
@@ -212,17 +212,19 @@ class DQN_CQL(OfflineDoubleDQN):
             np.array(batch.reward, dtype=np.float32), device=self.device)
         valid_batch = torch.tensor(
             np.array(batch.valid, dtype=np.float32), device=self.device)
-        steps_batch = torch.tensor(np.array(steps_batch, dtype=np.float32), device=self.device)
+        steps_batch = torch.tensor(
+            np.array(steps_batch, dtype=np.float32), device=self.device)
 
         qout = self.q_func(state_batch)
         state_action_values = qout.gather(1, action_batch)
 
         expected_state_action_values = reward_batch + \
-                                       valid_batch * (self.gamma ** steps_batch) * \
-                                       self.next_state_value(next_state_batch)
+            valid_batch * (self.gamma ** steps_batch) * \
+            self.next_state_value(next_state_batch)
 
         if self.prioritized:
-            td_error = abs(expected_state_action_values - state_action_values.squeeze(1)).tolist()
+            td_error = abs(expected_state_action_values -
+                           state_action_values.squeeze(1)).tolist()
             for data_idx, err in zip(idx_batch, td_error):
                 self.replay_buffer.update(data_idx, err)
 
@@ -230,19 +232,21 @@ class DQN_CQL(OfflineDoubleDQN):
             if self.prioritized:
                 loss_each = F.smooth_l1_loss(state_action_values,
                                              expected_state_action_values.unsqueeze(1), reduction='none')
-                dqn_loss = torch.sum(loss_each * torch.tensor(weights, device=self.device))
+                dqn_loss = torch.sum(
+                    loss_each * torch.tensor(weights, device=self.device))
             else:
                 dqn_loss = F.smooth_l1_loss(state_action_values,
-                                        expected_state_action_values.unsqueeze(1))
+                                            expected_state_action_values.unsqueeze(1))
         else:
             if self.prioritized:
                 loss_each = F.mse_loss(state_action_values,
                                        expected_state_action_values.unsqueeze(1), reduction='none')
-                dqn_loss = torch.sum(loss_each * torch.tensor(weights, device=self.device))
+                dqn_loss = torch.sum(
+                    loss_each * torch.tensor(weights, device=self.device))
 
             else:
                 dqn_loss = F.mse_loss(state_action_values,
-                                  expected_state_action_values.unsqueeze(1))
+                                      expected_state_action_values.unsqueeze(1))
 
         # add CQL loss
         policy_q = torch.logsumexp(qout, dim=-1, keepdim=True)

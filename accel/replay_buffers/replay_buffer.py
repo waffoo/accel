@@ -1,8 +1,8 @@
-from collections import namedtuple, deque
+import os
 import random
+from collections import deque, namedtuple
 
 import numpy as np
-import os
 
 Transition = namedtuple(
     'Transition', ('state', 'action', 'next_state', 'reward', 'valid'))
@@ -10,7 +10,8 @@ Transition = namedtuple(
 
 class ReplayBuffer(object):
 
-    def __init__(self, capacity, nstep=1, record=False, record_size=1_000_000, record_outdir=None):
+    def __init__(self, capacity, nstep=1, record=False,
+                 record_size=1_000_000, record_outdir=None):
         self.capacity = capacity
         self.memory = []
         self.position = 0
@@ -39,7 +40,8 @@ class ReplayBuffer(object):
         self.terminal_array.append(1 - transition.valid)
 
         if len(self.state_array) == self.record_size:
-            self.output_transitions(os.path.join(self.record_outdir, f'{self.record_cnt}.npz'))
+            self.output_transitions(os.path.join(
+                self.record_outdir, f'{self.record_cnt}.npz'))
             self.reset_record()
             self.record_cnt += 1
 
@@ -47,10 +49,10 @@ class ReplayBuffer(object):
         np.savez_compressed(filename,
                             state=np.array(self.state_array, dtype=np.uint8),
                             action=np.array(self.action_array, dtype=np.uint8),
-                            reward=np.array(self.reward_array, dtype=np.float32),
+                            reward=np.array(self.reward_array,
+                                            dtype=np.float32),
                             terminal=np.array(self.terminal_array, dtype=np.uint8))
         print(f'{filename} was successfully saved!')
-
 
     def push(self, *args):
         """Saves a transition."""

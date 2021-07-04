@@ -1,17 +1,19 @@
-import gym
-import pybullet_envs
-import numpy as np
+import argparse
+import datetime
+import os
 import random
+import time
+
+import gym
+import numpy as np
+import pybullet_envs
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from accel.agents.sac import SAC
 from accel.replay_buffers.replay_buffer import ReplayBuffer
 from accel.utils.wrappers import RewardScaler
-import datetime
-import argparse
-import time
-import os
 
 seed = 0
 random.seed(seed)
@@ -34,8 +36,8 @@ args = parser.parse_args()
 
 env = RewardScaler(gym.make(args.env), scale=args.scale)
 eval_env = gym.make(args.env)
-#env = gym.wrappers.Monitor(env, 'movie', force=True)
-#env.render(mode='human')
+# env = gym.wrappers.Monitor(env, 'movie', force=True)
+# env.render(mode='human')
 
 n_states = env.observation_space.shape[0]
 n_actions = len(env.action_space.low)
@@ -64,8 +66,6 @@ if args.demo:
         print(f'Episode: {x+1}  Score:{total_reward}')
 
     exit(0)
-
-
 
 
 num_steps = 5 * 10**6
@@ -110,7 +110,8 @@ while agent.total_steps < num_steps:
         total_reward += reward
         step += 1
 
-        next_valid = 1 if step == env.spec.max_episode_steps else float(not done)
+        next_valid = 1 if step == env.spec.max_episode_steps else float(
+            not done)
         agent.update(obs, action, next_obs, reward, next_valid)
 
         obs = next_obs

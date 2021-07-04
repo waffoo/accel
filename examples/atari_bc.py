@@ -1,11 +1,16 @@
+import os
+from os import system
+from subprocess import call
+
 import gym
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split
-from subprocess import call
-from os import system
+from torch.utils.data import DataLoader, TensorDataset
+
+from accel.utils.atari_wrappers import make_atari
 
 
 class Net(nn.Module):
@@ -30,15 +35,12 @@ class Net(nn.Module):
         adv = self.fc2(adv)
         return F.softmax(adv, dim=-1)
 
-from accel.utils.atari_wrappers import make_atari
 
 eval_env = make_atari(
     'PongNoFrameskip-v4', clip_rewards=False, color=True, image_size=128, frame_stack=False)
 dim_state = eval_env.observation_space.shape[0]
 dim_action = eval_env.action_space.n
 
-import os
-import numpy as np
 data_path = os.path.join('dataset', 'pong-1s', '9.npz')
 print(f'open {data_path}...')
 dataset = np.load(data_path)
@@ -124,5 +126,3 @@ for epoch in range(epochs):
     system(f'rm gym-results/*.png')
 
     print(f'epoch {epoch} / reward: {total_reward}')
-
-

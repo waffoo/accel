@@ -1,20 +1,20 @@
+import os
 from time import time
+
 import gym
+import hydra
+import mlflow
+import numpy as np
 # from gym.utils.play import play import random
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
-import numpy as np
-import hydra
-import mlflow
-import os
+import torch.optim as optim
 
-from accel.utils.atari_wrappers import make_atari
-from accel.explorers import epsilon_greedy
 from accel.agents import ppo
+from accel.explorers import epsilon_greedy
+from accel.utils.atari_wrappers import callable_atari_wrapper, make_atari
 from accel.utils.utils import set_seed
-from accel.utils.atari_wrappers import callable_atari_wrapper
 
 
 def init(module, weight_init, bias_init, gain=1.):
@@ -26,8 +26,10 @@ def init(module, weight_init, bias_init, gain=1.):
 class ActorNet(nn.Module):
     def __init__(self, input, output, high_reso=False):
         super().__init__()
-        init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
-                               constant_(x, 0), nn.init.calculate_gain('relu'))
+
+        def init_(m):
+            return init(m, nn.init.orthogonal_, lambda x: nn.init.
+                        constant_(x, 0), nn.init.calculate_gain('relu'))
         self.conv1 = init_(nn.Conv2d(input, 32, kernel_size=8, stride=4))
         self.conv2 = init_(nn.Conv2d(32, 64, kernel_size=4, stride=2))
         self.conv3 = init_(nn.Conv2d(64, 64, kernel_size=3, stride=1))
@@ -35,10 +37,11 @@ class ActorNet(nn.Module):
         linear_size = 7 * 7 * 64 if not high_reso else 12 * 12 * 64
         self.fc1 = init_(nn.Linear(linear_size, 512))
 
-        init_ = lambda m: init(
-            m,
-            nn.init.orthogonal_,
-            lambda x: nn.init.constant_(x, 0), gain=0.01)
+        def init_(m):
+            return init(
+                m,
+                nn.init.orthogonal_,
+                lambda x: nn.init.constant_(x, 0), gain=0.01)
 
         self.fc2 = init_(nn.Linear(512, output))
 
@@ -59,8 +62,10 @@ class ActorNet(nn.Module):
 class CriticNet(nn.Module):
     def __init__(self, input, high_reso=False):
         super().__init__()
-        init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
-                               constant_(x, 0), nn.init.calculate_gain('relu'))
+
+        def init_(m):
+            return init(m, nn.init.orthogonal_, lambda x: nn.init.
+                        constant_(x, 0), nn.init.calculate_gain('relu'))
         self.conv1 = init_(nn.Conv2d(input, 32, kernel_size=8, stride=4))
         self.conv2 = init_(nn.Conv2d(32, 64, kernel_size=4, stride=2))
         self.conv3 = init_(nn.Conv2d(64, 64, kernel_size=3, stride=1))
@@ -68,8 +73,9 @@ class CriticNet(nn.Module):
         linear_size = 7 * 7 * 64 if not high_reso else 12 * 12 * 64
         self.fc1 = init_(nn.Linear(linear_size, 512))
 
-        init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
-                               constant_(x, 0))
+        def init_(m):
+            return init(m, nn.init.orthogonal_, lambda x: nn.init.
+                        constant_(x, 0))
         self.fc2 = init_(nn.Linear(512, 1))
 
     def forward(self, x):
@@ -130,15 +136,15 @@ def main(cfg):
         mlflow.log_param('batch_size', cfg.batch_size)
         mlflow.set_tag('env', cfg.env)
 
-
         if not cfg.device:
             cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-
         if cfg.atari:
-            wrapper = callable_atari_wrapper(color=cfg.color, frame_stack=not cfg.no_stack)
+            wrapper = callable_atari_wrapper(
+                color=cfg.color, frame_stack=not cfg.no_stack)
             envs = gym.vector.make(cfg.env, cfg.parallel, wrappers=wrapper)
-            eval_env = make_atari(cfg.env, color=cfg.color, frame_stack=not cfg.no_stack, clip_rewards=False)
+            eval_env = make_atari(
+                cfg.env, color=cfg.color, frame_stack=not cfg.no_stack, clip_rewards=False)
         else:
             envs = gym.vector.make(cfg.env, cfg.parallel)
             eval_env = gym.make(cfg.env)
@@ -154,10 +160,10 @@ def main(cfg):
             critic = CriticMLPNet(dim_state, high_reso=cfg.high_reso)
 
         agent2 = ppo.PPO(envs, eval_env, cfg.steps,
-                            actor=actor, critic=critic, lmd=0.9, gamma=cfg.gamma,
-                            device=cfg.device, batch_size=cfg.batch_size, load=cfg.load, eval_interval=cfg.eval_interval,
-                            clip_eps=0.1, mlflow=True, value_loss_coef=cfg.value_loss_coef,
-                            value_clipping=cfg.value_clipping, atari=True)
+                         actor=actor, critic=critic, lmd=0.9, gamma=cfg.gamma,
+                         device=cfg.device, batch_size=cfg.batch_size, load=cfg.load, eval_interval=cfg.eval_interval,
+                         clip_eps=0.1, mlflow=True, value_loss_coef=cfg.value_loss_coef,
+                         value_clipping=cfg.value_clipping, atari=True)
 
         agent2.run()
 

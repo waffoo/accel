@@ -1,5 +1,6 @@
-import random
 import math
+import random
+
 import torch
 
 
@@ -36,7 +37,8 @@ class LinearDecayEpsilonGreedy(EpsilonGreedyBase):
         if step >= self.decay_steps:
             return self.end_eps
 
-        return self.start_eps - (self.start_eps - self.end_eps) * step / self.decay_steps
+        return self.start_eps - \
+            (self.start_eps - self.end_eps) * step / self.decay_steps
 
 
 class ExpDecayEpsilonGreedy(EpsilonGreedyBase):
@@ -46,4 +48,5 @@ class ExpDecayEpsilonGreedy(EpsilonGreedyBase):
         self.decay = decay
 
     def calc_eps(self, step):
-        return self.end_eps + (self.start_eps - self.end_eps) * math.exp(-1. * step / self.decay)
+        return self.end_eps + (self.start_eps - self.end_eps) * \
+            math.exp(-1. * step / self.decay)

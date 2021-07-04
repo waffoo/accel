@@ -1,14 +1,17 @@
-from collections import namedtuple, deque
-from accel.replay_buffers.binary_tree import SumTree, MinTree
 import random
+from collections import deque, namedtuple
+
 import numpy as np
+
+from accel.replay_buffers.binary_tree import MinTree, SumTree
 
 Transition = namedtuple(
     'Transition', ('state', 'action', 'next_state', 'reward', 'valid'))
 
 
 class PrioritizedReplayBuffer(object):
-    def __init__(self, capacity, alpha=0.6, beta0=0.4, eps=1e-6, beta_steps=int(2e5), nstep=1):
+    def __init__(self, capacity, alpha=0.6, beta0=0.4,
+                 eps=1e-6, beta_steps=int(2e5), nstep=1):
         self.capacity = capacity
         self.sum_tree = SumTree(capacity)
         self.min_tree = MinTree(capacity)
@@ -60,7 +63,6 @@ class PrioritizedReplayBuffer(object):
                 if self.write >= self.capacity:
                     self.write = 0
 
-
         '''
         self.data[self.write] = transition
 
@@ -104,7 +106,8 @@ class PrioritizedReplayBuffer(object):
             weights.append(weight)
 
         weights = np.array(weights)
-        _initial_data_ratio = (np.array(pris, dtype=np.float32) == self._get_priority(self.max_err)).mean()
+        _initial_data_ratio = (
+            np.array(pris, dtype=np.float32) == self._get_priority(self.max_err)).mean()
 
         return batch, idx_batch, weights / max_weight
 

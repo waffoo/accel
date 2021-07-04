@@ -68,10 +68,10 @@ def main(cfg):
     env = make_atari(cfg.env, color=cfg.color,
                      image_size=img_size, frame_stack=not cfg.no_stack)
     eval_env = make_atari(cfg.env, color=cfg.color,
-                     image_size=img_size, frame_stack=not cfg.no_stack, clip_rewards=False)
+                          image_size=img_size, frame_stack=not cfg.no_stack, clip_rewards=False)
 
     env.seed(cfg.seed)
-    eval_env.seed(cfg.seed+1)
+    eval_env.seed(cfg.seed + 1)
 
     dim_state = env.observation_space.shape[0]
     dim_action = env.action_space.n
@@ -91,7 +91,8 @@ def main(cfg):
             q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
 
     if cfg.prioritized:
-        memory = PrioritizedReplayBuffer(capacity=cfg.replay_capacity, beta_steps=cfg.steps - cfg.replay_start_step, nstep=cfg.nstep)
+        memory = PrioritizedReplayBuffer(
+            capacity=cfg.replay_capacity, beta_steps=cfg.steps - cfg.replay_start_step, nstep=cfg.nstep)
     else:
         memory = ReplayBuffer(capacity=cfg.replay_capacity, nstep=cfg.nstep, record=cfg.record, record_size=cfg.record_size,
                               record_outdir=os.path.join(cwd, cfg.record_outdir, cfg.name))
@@ -168,7 +169,8 @@ def main(cfg):
                 mlflow.log_artifact(gifname)
 
                 elapsed = time() - train_start_time
-                logger.info(f'Step {agent.total_steps} / Score {ave_r} / Elapsed {elapsed:.1f}')
+                logger.info(
+                    f'Step {agent.total_steps} / Score {ave_r} / Elapsed {elapsed:.1f}')
                 mlflow.log_metric('reward', ave_r, step=agent.total_steps)
 
                 log = f'{agent.total_steps} {ave_r} {elapsed:.1f}\n'

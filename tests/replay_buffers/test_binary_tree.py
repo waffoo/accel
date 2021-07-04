@@ -1,7 +1,9 @@
-import pytest
-from accel.replay_buffers.binary_tree import SumTree, MinTree
-from collections import defaultdict
 import random
+from collections import defaultdict
+
+import pytest
+
+from accel.replay_buffers.binary_tree import MinTree, SumTree
 
 P = [6, 48, 31, 26, 49, 43, 93, 74, 79, 13]
 
@@ -32,4 +34,3 @@ def test_min_tree_top():
     for i, p in enumerate(P):
         tree.update(i, p)
     assert tree.top() == pytest.approx(min(P))
-

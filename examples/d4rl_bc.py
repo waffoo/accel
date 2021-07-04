@@ -1,11 +1,12 @@
-import gym
+from os import system
+
 import d4rl
+import gym
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split
-from os import system
+from torch.utils.data import DataLoader, TensorDataset
 
 
 class BCNet(nn.Module):
@@ -105,5 +106,3 @@ for epoch in range(epochs):
     system(f'rm gym-results/*.png')
 
     print(f'epoch {epoch} / reward: {total_reward}')
-
-

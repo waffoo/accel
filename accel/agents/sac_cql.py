@@ -1,19 +1,22 @@
 import os
-from os import system
 import time
+from os import system
 
+import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.distributions import Normal
-import numpy as np
 from PIL import Image
+from torch.distributions import Normal
+
 from accel.agents.sac import SAC
 from accel.replay_buffers.replay_buffer import Transition
+
 
 def atanh(x):
     one_plus_x = (1 + x).clamp(min=1e-6)
     one_minus_x = (1 - x).clamp(min=1e-6)
-    return 0.5*torch.log(one_plus_x/ one_minus_x)
+    return 0.5 * torch.log(one_plus_x / one_minus_x)
+
 
 class OfflineSAC(SAC):
     def __init__(self, eval_env,
@@ -30,15 +33,15 @@ class OfflineSAC(SAC):
                  target_update_interval=1,
                  load=None):
         super().__init__(device,
-                 observation_space,
-                 action_space,
-                 gamma, replay_buffer, tau=tau,
-                 actor_lr=actor_lr,
-                 critic_lr=critic_lr,
-                 batch_size=batch_size,
-                 update_interval=update_interval,
-                 target_update_interval=target_update_interval,
-                 load=load)
+                         observation_space,
+                         action_space,
+                         gamma, replay_buffer, tau=tau,
+                         actor_lr=actor_lr,
+                         critic_lr=critic_lr,
+                         batch_size=batch_size,
+                         update_interval=update_interval,
+                         target_update_interval=target_update_interval,
+                         load=load)
 
         self.eval_env = eval_env
         self.data = None
@@ -51,7 +54,6 @@ class OfflineSAC(SAC):
 
         os.makedirs(self.outdir, exist_ok=True)
         self.train_start_time = None
-
 
     def set_dataset(self, dataset, num=None):
         print('data registreation start')
@@ -76,7 +78,7 @@ class OfflineSAC(SAC):
 
         self.replay_buffer.memory = result
 
-    def fit(self, steps, eval_interval=5*10**3):
+    def fit(self, steps, eval_interval=5 * 10**3):
         next_eval_cnt = 1
 
         self.total_steps = 0
@@ -192,7 +194,9 @@ class SAC_CQL(OfflineSAC):
         self.total_steps = self.train_cnt
 
         transitions = self.replay_buffer.sample(self.batch_size)
-        map_func = lambda x: x[0]
+
+        def map_func(x):
+            return x[0]
         batch = Transition(*zip(*map(map_func, transitions)))
 
         state_batch = torch.tensor(
@@ -214,20 +218,29 @@ class SAC_CQL(OfflineSAC):
         q2_mse_loss = F.mse_loss(q2_data, target_q)
 
         num_random = 10
-        random_actions = torch.FloatTensor(q2_data.shape[0] * num_random, action_batch.shape[-1]).uniform_(-1, 1).to(self.device)
-        current_states = state_batch.unsqueeze(1).repeat(1, num_random, 1).view(-1, state_batch.shape[-1])
+        random_actions = torch.FloatTensor(
+            q2_data.shape[0] * num_random, action_batch.shape[-1]).uniform_(-1, 1).to(self.device)
+        current_states = state_batch.unsqueeze(1).repeat(
+            1, num_random, 1).view(-1, state_batch.shape[-1])
         current_actions, current_logpis, _ = self.try_act(current_states)
         current_actions, current_logpis = current_actions.detach(), current_logpis.detach()
-        next_states = next_state_batch.unsqueeze(1).repeat(1, num_random, 1).view(-1, state_batch.shape[-1])
+        next_states = next_state_batch.unsqueeze(1).repeat(
+            1, num_random, 1).view(-1, state_batch.shape[-1])
         next_actions, next_logpis, _ = self.try_act(next_states)
         next_actions, next_logpis = next_actions.detach(), next_logpis.detach()
 
-        q1_rand = self.critic1(current_states, random_actions).view(-1, num_random)
-        q2_rand = self.critic2(current_states, random_actions).view(-1, num_random)
-        q1_curr = self.critic1(current_states, current_actions).view(-1, num_random)
-        q2_curr = self.critic2(current_states, current_actions).view(-1, num_random)
-        q1_next = self.critic1(current_states, next_actions).view(-1, num_random)
-        q2_next = self.critic2(current_states, next_actions).view(-1, num_random)
+        q1_rand = self.critic1(
+            current_states, random_actions).view(-1, num_random)
+        q2_rand = self.critic2(
+            current_states, random_actions).view(-1, num_random)
+        q1_curr = self.critic1(
+            current_states, current_actions).view(-1, num_random)
+        q2_curr = self.critic2(
+            current_states, current_actions).view(-1, num_random)
+        q1_next = self.critic1(
+            current_states, next_actions).view(-1, num_random)
+        q2_next = self.critic2(
+            current_states, next_actions).view(-1, num_random)
         current_logpis = current_logpis.view(-1, num_random)
         next_logpis = next_logpis.view(-1, num_random)
 
@@ -239,8 +252,10 @@ class SAC_CQL(OfflineSAC):
                             q2_curr - current_logpis.detach(),
                             q2_next - next_logpis.detach()], 1)
 
-        cql_loss1 = (torch.logsumexp(cat_q1, dim=1, keepdim=True) - q1_data).mean()
-        cql_loss2 = (torch.logsumexp(cat_q2, dim=1, keepdim=True) - q2_data).mean()
+        cql_loss1 = (torch.logsumexp(
+            cat_q1, dim=1, keepdim=True) - q1_data).mean()
+        cql_loss2 = (torch.logsumexp(
+            cat_q2, dim=1, keepdim=True) - q2_data).mean()
 
         q1_loss = q1_mse_loss + self.cql_weight * cql_loss1
         q2_loss = q2_mse_loss + self.cql_weight * cql_loss2
@@ -265,8 +280,8 @@ class SAC_CQL(OfflineSAC):
             mean, log_std = self.actor(state_batch)
             normal = Normal(mean, log_std.exp())
             eps = 1e-6
-            logprob = (normal.log_prob(raw_action)
-                      - torch.log(1 - action_batch.pow(2) + eps))
+            logprob = normal.log_prob(raw_action) - \
+                torch.log(1 - action_batch.pow(2) + eps)
             logprob = logprob.sum(1, keepdims=True)
 
             policy_loss = ((self.alpha * log_pi) - logprob).mean()

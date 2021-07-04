@@ -1,18 +1,19 @@
-import gym
 import copy
 # from gym.utils.play import play import random
 import math
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-import matplotlib.pyplot as plt
-import numpy as np
 import random
 
-from accel.explorers import epsilon_greedy
-from accel.replay_buffers.replay_buffer import Transition, ReplayBuffer
+import gym
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+
 from accel.agents import dqn
+from accel.explorers import epsilon_greedy
+from accel.replay_buffers.replay_buffer import ReplayBuffer, Transition
 
 seed = 0
 random.seed(seed)
@@ -67,7 +68,6 @@ max_episode_len = 200
 
 def translate(n):
     return float(n - 2)
-
 
 
 q_func = Net(dim_state, dim_action, dim_hidden)

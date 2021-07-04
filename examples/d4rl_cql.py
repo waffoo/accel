@@ -1,10 +1,11 @@
+import argparse
+
+import d4rl
 import gym
 import torch
-from accel.agents.sac_cql import SAC_CQL
-import argparse
-from accel.replay_buffers.replay_buffer import ReplayBuffer
-import d4rl
 
+from accel.agents.sac_cql import SAC_CQL
+from accel.replay_buffers.replay_buffer import ReplayBuffer
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--env', default='HumanoidBulletEnv-v0',

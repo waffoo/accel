@@ -1,8 +1,9 @@
-import torch
 import random
-import numpy as np
+
 import imageio
+import numpy as np
 import pygifsicle
+import torch
 
 
 def set_seed(seed):
@@ -11,6 +12,7 @@ def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
+
 
 def save_as_video(name, frames, fps=60):
     imageio.mimsave(name, frames, fps=fps)

@@ -1,7 +1,9 @@
-from accel.explorers import epsilon_greedy
+import math
+
 import pytest
 import torch
-import math
+
+from accel.explorers import epsilon_greedy
 
 
 def test_const_eps_calc():
@@ -17,7 +19,7 @@ def test_linear_decay_eps_calc():
         start_eps=1.0, end_eps=0.0, decay_steps=decay_steps)
 
     assert explorer.calc_eps(0) == pytest.approx(1.0)
-    assert explorer.calc_eps(decay_steps/2) == pytest.approx(0.5)
+    assert explorer.calc_eps(decay_steps / 2) == pytest.approx(0.5)
     assert explorer.calc_eps(decay_steps * 2) == pytest.approx(0)
 
 
