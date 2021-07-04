@@ -23,7 +23,7 @@ jobs:
                   name: format test
                   command: |
                       pycodestyle --ignore E501,W504 .
-                      isort -c .
+                      isort -c --diff .
             - run:
                   name: test command
                   command: pytest -v tests
