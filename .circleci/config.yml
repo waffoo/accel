@@ -13,11 +13,17 @@ jobs:
                       sudo apt install cmake
                       pip install -U pip
                       pip install .
+                      pip install pycodestyle isort
             - save_cache:
                   key: accel-{{ checksum "pyproject.toml" }}
                   paths:
                       - "/home/circleci/.local/bin/"
                       - "/home/circleci/.local/lib/"
+            - run:
+                  name: format test
+                  command: |
+                      pycodestyle --ignore E501,W504 .
+                      isort -c --diff .
             - run:
                   name: test command
                   command: pytest -v tests
