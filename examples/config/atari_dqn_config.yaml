@@ -20,3 +20,4 @@ end_eps: 0.01
 record: True
 record_outdir: dataset
 record_size: 1_000_000
+eval_times: 3

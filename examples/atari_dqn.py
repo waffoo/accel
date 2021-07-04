@@ -1,21 +1,26 @@
+import os
+from logging import DEBUG, getLogger
 from time import time
+
 import gym
-# from gym.utils.play import play import random
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-import numpy as np
 import hydra
 import mlflow
-import os
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
 
-from accel.utils.atari_wrappers import make_atari, make_atari_ram
-from accel.explorers import epsilon_greedy
-from accel.replay_buffers.replay_buffer import Transition, ReplayBuffer
-from accel.replay_buffers.prioritized_replay_buffer import PrioritizedReplayBuffer
 from accel.agents import dqn
-from accel.utils.utils import set_seed
+from accel.explorers import epsilon_greedy
+from accel.replay_buffers.prioritized_replay_buffer import \
+    PrioritizedReplayBuffer
+from accel.replay_buffers.replay_buffer import ReplayBuffer
+from accel.utils.atari_wrappers import make_atari
+from accel.utils.utils import save_as_video, set_seed
+
+logger = getLogger(__name__)
+logger.setLevel(DEBUG)
 
 
 class Net(nn.Module):
@@ -50,32 +55,71 @@ class Net(nn.Module):
         return v + adv - adv.mean(dim=1, keepdim=True)
 
 
-class RamNet(nn.Module):
-    def __init__(self, input, output):
-        super().__init__()
-        self.fc1 = nn.Linear(input, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, 64)
-        self.fc4 = nn.Linear(64, output)
-
-    def forward(self, x):
-        x = x / 255.
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = F.relu(self.fc3(x))
-        return self.fc4(x)
-
-
 @hydra.main(config_path='config', config_name='atari_dqn_config')
 def main(cfg):
     set_seed(cfg.seed)
 
     cwd = hydra.utils.get_original_cwd()
+
+    if not cfg.device:
+        cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    img_size = 128 if cfg.high_reso else 84
+    env = make_atari(cfg.env, color=cfg.color,
+                     image_size=img_size, frame_stack=not cfg.no_stack)
+    eval_env = make_atari(cfg.env, color=cfg.color,
+                     image_size=img_size, frame_stack=not cfg.no_stack, clip_rewards=False)
+
+    env.seed(cfg.seed)
+    eval_env.seed(cfg.seed+1)
+
+    dim_state = env.observation_space.shape[0]
+    dim_action = env.action_space.n
+
+    q_func = Net(dim_state, dim_action,
+                 dueling=cfg.dueling, high_reso=cfg.high_reso)
+
+    if cfg.load:
+        q_func.load_state_dict(torch.load(os.path.join(
+            cwd, cfg.load), map_location=cfg.device))
+
+    if cfg.adam:
+        # same as Rainbow
+        optimizer = optim.Adam(q_func.parameters(), lr=0.0000625, eps=1.5e-4)
+    else:
+        optimizer = optim.RMSprop(
+            q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
+
+    if cfg.prioritized:
+        memory = PrioritizedReplayBuffer(capacity=cfg.replay_capacity, beta_steps=cfg.steps - cfg.replay_start_step, nstep=cfg.nstep)
+    else:
+        memory = ReplayBuffer(capacity=cfg.replay_capacity, nstep=cfg.nstep, record=cfg.record, record_size=cfg.record_size,
+                              record_outdir=os.path.join(cwd, cfg.record_outdir, cfg.name))
+
+    explorer = epsilon_greedy.LinearDecayEpsilonGreedy(
+        start_eps=1.0, end_eps=cfg.end_eps, decay_steps=1e6)
+
+    agent = dqn.DoubleDQN(q_func, optimizer, memory, cfg.gamma,
+                          explorer, cfg.device, batch_size=32,
+                          target_update_interval=10000,
+                          replay_start_step=cfg.replay_start_step)
+
+    if cfg.demo:
+        agent.eval(eval_env, n_epis=10, render=True)
+        exit(0)
+
+    next_eval_cnt = 1
+    episode_cnt = 0
+
+    train_start_time = time()
+
+    log_file_name = 'scores.txt'
+    best_score = -1e10
+
     mlflow.set_tracking_uri(os.path.join(cwd, 'mlruns'))
     mlflow.set_experiment('atari_dqn')
 
     with mlflow.start_run(run_name=cfg.name):
-        is_ram = '-ram' in cfg.env
 
         mlflow.log_param('seed', cfg.seed)
         mlflow.log_param('gamma', cfg.gamma)
@@ -86,100 +130,10 @@ def main(cfg):
         mlflow.log_param('high', cfg.high_reso)
         mlflow.log_param('no_stack', cfg.no_stack)
         mlflow.log_param('nstep', cfg.nstep)
-        mlflow.log_param('ram', is_ram)
         mlflow.log_param('adam', cfg.adam)
         mlflow.log_param('end_eps', cfg.end_eps)
+        mlflow.log_param('eval_times', cfg.eval_times)
         mlflow.set_tag('env', cfg.env)
-
-        if not cfg.device:
-            cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-        if is_ram:
-            env = make_atari_ram(cfg.env)
-            eval_env = make_atari_ram(cfg.env, clip_rewards=False)
-        else:
-            if cfg.high_reso:
-                env = make_atari(cfg.env, color=cfg.color,
-                                 image_size=128, frame_stack=not cfg.no_stack)
-                eval_env = make_atari(
-                    cfg.env, clip_rewards=False, color=cfg.color, image_size=128, frame_stack=not cfg.no_stack)
-            else:
-                env = make_atari(cfg.env, color=cfg.color,
-                                 frame_stack=not cfg.no_stack)
-                eval_env = make_atari(
-                    cfg.env, clip_rewards=False, color=cfg.color, frame_stack=not cfg.no_stack)
-
-        env.seed(cfg.seed)
-        eval_env.seed(cfg.seed)
-
-        dim_state = env.observation_space.shape[0]
-        dim_action = env.action_space.n
-
-        if is_ram:
-            q_func = RamNet(dim_state, dim_action)
-        else:
-            q_func = Net(dim_state, dim_action,
-                         dueling=cfg.dueling, high_reso=cfg.high_reso)
-
-        if cfg.load:
-            q_func.load_state_dict(torch.load(os.path.join(
-                cwd, cfg.load), map_location=cfg.device))
-
-        if cfg.adam:
-            # same as Rainbow
-            optimizer = optim.Adam(q_func.parameters(), lr=0.0000625, eps=1.5e-4)
-        else:
-            optimizer = optim.RMSprop(
-                q_func.parameters(), lr=0.00025, alpha=0.95, eps=1e-2)
-
-        if cfg.prioritized:
-            memory = PrioritizedReplayBuffer(capacity=cfg.replay_capacity, beta_steps=cfg.steps - cfg.replay_start_step, nstep=cfg.nstep)
-        else:
-            memory = ReplayBuffer(capacity=cfg.replay_capacity, nstep=cfg.nstep, record=True, record_size=cfg.record_size,
-                                  record_outdir=os.path.join(cwd, cfg.record_outdir, cfg.name))
-
-        score_steps = []
-        scores = []
-
-        explorer = epsilon_greedy.LinearDecayEpsilonGreedy(
-            start_eps=1.0, end_eps=cfg.end_eps, decay_steps=1e6)
-
-        agent = dqn.DoubleDQN(q_func, optimizer, memory, cfg.gamma,
-                              explorer, cfg.device, batch_size=32,
-                              target_update_interval=10000,
-                              replay_start_step=cfg.replay_start_step)
-
-        if cfg.demo:
-            for x in range(10):
-                total_reward = 0
-
-                while True:
-                    obs = eval_env.reset()
-                    eval_env.render()
-                    done = False
-
-                    while not done:
-                        action = agent.act(obs, greedy=True)
-                        obs, reward, done, _ = eval_env.step(action)
-                        eval_env.render()
-
-                        # print(reward)
-                        total_reward += reward
-
-                    if eval_env.was_real_done:
-                        break
-
-                print('Episode:', x, 'Score:', total_reward)
-
-            exit(0)
-
-        next_eval_cnt = 1
-        episode_cnt = 0
-
-        train_start_time = time()
-
-        log_file_name = 'scores.txt'
-        best_score = -1e10
 
         while agent.total_steps < cfg.steps:
             episode_cnt += 1
@@ -201,74 +155,34 @@ def main(cfg):
 
                 obs = next_obs
 
-            if agent.total_steps > next_eval_cnt * cfg.eval_interval:
-                total_reward = 0
+            final_flag = not (agent.total_steps < cfg.steps)
 
-                while True:
-                    obs = eval_env.reset()
-                    done = False
-
-                    while not done:
-                        action = agent.act(obs, greedy=True)
-                        obs, reward, done, _ = eval_env.step(action)
-
-                        total_reward += reward
-
-                    if eval_env.was_real_done:
-                        break
-
+            if agent.total_steps > next_eval_cnt * cfg.eval_interval or final_flag:
                 next_eval_cnt += 1
+                ave_r, rewards, frames = agent.eval(eval_env,
+                                                    n_epis=cfg.eval_times,
+                                                    record_n_epis=1)
 
-                score_steps.append(agent.total_steps)
-                scores.append(total_reward)
+                gifname = f'eval{agent.total_steps}.gif'
+                save_as_video(gifname, frames)
+                mlflow.log_artifact(gifname)
 
-                if total_reward > best_score:
-                    model_name = f'{agent.total_steps}.model'
-                    torch.save(q_func.state_dict(), model_name)
-                    best_score = total_reward
+                elapsed = time() - train_start_time
+                logger.info(f'Step {agent.total_steps} / Score {ave_r} / Elapsed {elapsed:.1f}')
+                mlflow.log_metric('reward', ave_r, step=agent.total_steps)
 
-                now = time()
-                elapsed = now - train_start_time
-
-                log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
-                print(log, end='')
-                mlflow.log_metric('reward', total_reward,
-                                  step=agent.total_steps)
-
+                log = f'{agent.total_steps} {ave_r} {elapsed:.1f}\n'
                 with open(log_file_name, 'a') as f:
                     f.write(log)
 
-        # final evaluation
-        total_reward = 0
+                if ave_r > best_score:
+                    model_name = f'{agent.total_steps}.model'
+                    torch.save(q_func.state_dict(), model_name)
+                    best_score = ave_r
 
-        while True:
-            obs = eval_env.reset()
-            done = False
-
-            while not done:
-                action = agent.act(obs, greedy=True)
-                obs, reward, done, _ = eval_env.step(action)
-
-                total_reward += reward
-
-            if eval_env.was_real_done:
-                break
-
-        score_steps.append(agent.total_steps)
-        scores.append(total_reward)
-
-        model_name = f'final.model'
-        torch.save(q_func.state_dict(), model_name)
-
-        now = time()
-        elapsed = now - train_start_time
-
-        log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
-        print(log, end='')
-        mlflow.log_metric('reward', total_reward, step=agent.total_steps)
-
-        with open(log_file_name, 'a') as f:
-            f.write(log)
+                if final_flag:
+                    model_name = f'final.model'
+                    torch.save(q_func.state_dict(), model_name)
 
         duration = np.round(elapsed / 60 / 60, 2)
         mlflow.log_metric('duration', duration)
