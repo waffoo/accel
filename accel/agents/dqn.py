@@ -6,6 +6,9 @@ import torch.nn.functional as F
 from accel.replay_buffers.replay_buffer import Transition
 from accel.replay_buffers.prioritized_replay_buffer import PrioritizedReplayBuffer
 
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 class DQN:
     def __init__(self, q_func, optimizer, replay_buffer, gamma, explorer,
@@ -135,6 +138,39 @@ class DQN:
         if self.total_steps - self.prev_target_update_time >= self.target_update_interval:
             self.target_q_func.load_state_dict(self.q_func.state_dict())
             self.prev_target_update_time = self.total_steps
+
+    def _eval_one_episode(self, env, render=False):
+        total_reward = 0
+
+        while True:
+            obs = env.reset()
+            if render:
+                env.render()
+            done = False
+
+            while not done:
+                action = self.act(obs, greedy=True)
+                obs, reward, done, _ = env.step(action)
+                if render:
+                    env.render()
+
+                total_reward += reward
+
+            if hasattr(env, 'was_real_done') and env.was_real_done:
+                break
+
+        return total_reward
+
+    def eval(self, env, n_epis=1, render=False):
+        rewards = []
+        for t in range(n_epis):
+            r = self._eval_one_episode(env, render=render)
+            rewards.append(r)
+            logger.info(f'Episode {t+1} Score: {r}')
+
+        mean = np.array(rewards).mean()
+        logger.info(f'Average score over {n_epis} episodes: {mean}')
+        return mean
 
 
 class DoubleDQN(DQN):
