@@ -139,13 +139,18 @@ class DQN:
             self.target_q_func.load_state_dict(self.q_func.state_dict())
             self.prev_target_update_time = self.total_steps
 
-    def _eval_one_episode(self, env, render=False):
+    def _add_obs_to_frame(self, obs, frames):
+        frames.append(obs.transpose(1, 2, 0))
+
+    def _eval_one_episode(self, env, frames, record=False, render=False):
         total_reward = 0
 
         while True:
             obs = env.reset()
             if render:
                 env.render()
+            if record:
+                self._add_obs_to_frame(obs, frames)
             done = False
 
             while not done:
@@ -153,6 +158,8 @@ class DQN:
                 obs, reward, done, _ = env.step(action)
                 if render:
                     env.render()
+                if record:
+                    self._add_obs_to_frame(obs, frames)
 
                 total_reward += reward
 
@@ -161,16 +168,24 @@ class DQN:
 
         return total_reward
 
-    def eval(self, env, n_epis=1, render=False):
+    def eval(self, env, n_epis=1, render=False, record_n_epis=0):
+        logger.info(f'Evaluation start')
+        assert record_n_epis <= n_epis
         rewards = []
+        frames = []
         for t in range(n_epis):
-            r = self._eval_one_episode(env, render=render)
+            r = self._eval_one_episode(env,
+                                       frames=frames,
+                                       record=t < record_n_epis,
+                                       render=render)
             rewards.append(r)
             logger.info(f'Episode {t+1} Score: {r}')
+            logger.debug('This episode has been recorded.')
 
-        mean = np.array(rewards).mean()
+        rewards = np.array(rewards)
+        mean = rewards.mean()
         logger.info(f'Average score over {n_epis} episodes: {mean}')
-        return mean
+        return mean, rewards, frames
 
 
 class DoubleDQN(DQN):

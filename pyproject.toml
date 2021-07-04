@@ -13,12 +13,15 @@ scikit-learn = "^0.24.2"
 typing-extensions = "^3.10.0"
 
 [tool.poetry.dev-dependencies]
-mlflow = "^1.11.0"
 pybullet = "^3.0.4"
 hydra-core = "^1.0.3"
 gym = "^0.17.2"
 atari-py = "0.2.6"
 procgen = "^0.10.4"
+imageio = "^2.9.0"
+pygifsicle = "^1.0.4"
+pandas = "1.2.5"
+mlflow = "^1.18.0"
 
 [build-system]
 requires = ["poetry>=0.12"]
