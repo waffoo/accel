@@ -92,7 +92,10 @@ def main(cfg):
 
     if cfg.prioritized:
         memory = PrioritizedReplayBuffer(
-            capacity=cfg.replay_capacity, beta_steps=cfg.steps - cfg.replay_start_step, nstep=cfg.nstep)
+            capacity=cfg.replay_capacity,
+            beta_steps=cfg.steps -
+            cfg.replay_start_step,
+            nstep=cfg.nstep)
     else:
         memory = ReplayBuffer(capacity=cfg.replay_capacity, nstep=cfg.nstep, record=cfg.record, record_size=cfg.record_size,
                               record_outdir=os.path.join(cwd, cfg.record_outdir, cfg.name))
@@ -139,26 +142,48 @@ def main(cfg):
         while agent.total_steps < cfg.steps:
             episode_cnt += 1
 
-            obs = env.reset()
-            done = False
+            train_frames = []
             total_reward = 0
             step = 0
+            while True:
+                obs = env.reset()
+                if cfg.train_record:
+                    agent._add_obs_to_frame(obs, train_frames)
+                done = False
 
-            while not done:
-                action = agent.act(obs)
-                next_obs, reward, done, _ = env.step(action)
-                total_reward += reward
-                step += 1
+                while not done:
+                    action = agent.act(obs)
+                    next_obs, reward, done, info = env.step(action)
+                    total_reward += reward
+                    step += 1
 
-                next_valid = 1 if step == env.spec.max_episode_steps else float(
-                    not done)
-                agent.update(obs, action, next_obs, reward, next_valid)
+                    timeout_label = 'TimeLimit.truncated'
+                    timeout = hasattr(
+                        info, timeout_label) and info[timeout_label]
+                    next_valid = 1. if timeout else float(not done)
+                    agent.update(obs, action, next_obs, reward, next_valid)
 
-                obs = next_obs
+                    obs = next_obs
+                    if cfg.train_record:
+                        agent._add_obs_to_frame(obs, train_frames)
+
+                if hasattr(env, 'was_real_done') and env.was_real_done:
+                    break
+
+            logger.info(f'Train episode: {episode_cnt} '
+                        f'steps: {step} '
+                        f'total_steps:{agent.total_steps} '
+                        f'score:{total_reward}')
 
             final_flag = not (agent.total_steps < cfg.steps)
 
             if agent.total_steps > next_eval_cnt * cfg.eval_interval or final_flag:
+                if cfg.train_record:
+                    gifname = f'train{agent.total_steps}.gif'
+                    save_as_video(gifname, train_frames)
+                    mlflow.log_artifact(gifname, artifact_path='train')
+                    logger.debug(f'save {gifname}')
+
                 next_eval_cnt += 1
                 ave_r, rewards, frames = agent.eval(eval_env,
                                                     n_epis=cfg.eval_times,
@@ -166,11 +191,13 @@ def main(cfg):
 
                 gifname = f'eval{agent.total_steps}.gif'
                 save_as_video(gifname, frames)
-                mlflow.log_artifact(gifname)
+                mlflow.log_artifact(gifname, artifact_path='eval')
+                logger.debug(f'save {gifname}')
 
                 elapsed = time() - train_start_time
                 logger.info(
-                    f'Step {agent.total_steps} / Score {ave_r} / Elapsed {elapsed:.1f}')
+                    f'Eval result | total_step: {agent.total_steps} '
+                    f'score: {ave_r} elapsed: {elapsed:.1f}')
                 mlflow.log_metric('reward', ave_r, step=agent.total_steps)
 
                 log = f'{agent.total_steps} {ave_r} {elapsed:.1f}\n'
@@ -178,13 +205,28 @@ def main(cfg):
                     f.write(log)
 
                 if ave_r > best_score:
-                    model_name = f'{agent.total_steps}.model'
+                    model_name = f'best.model'
                     torch.save(q_func.state_dict(), model_name)
+                    mlflow.log_artifact(model_name)
+
+                    best_ts_file = 'best_timestep.txt'
+                    best_sc_file = 'best_score.txt'
+                    with open(best_ts_file, 'w') as f:
+                        f.write(f'{agent.total_steps}\n')
+                    with open(best_sc_file, 'w') as f:
+                        f.write(f'{ave_r}\n')
+                    mlflow.log_artifact(model_name)
+                    mlflow.log_artifact(best_ts_file)
+                    mlflow.log_artifact(best_sc_file)
+
+                    logger.info(f'save {model_name}')
                     best_score = ave_r
 
                 if final_flag:
                     model_name = f'final.model'
                     torch.save(q_func.state_dict(), model_name)
+                    mlflow.log_artifact(model_name)
+                    logger.info(f'save {model_name}')
 
         duration = np.round(elapsed / 60 / 60, 2)
         mlflow.log_metric('duration', duration)
