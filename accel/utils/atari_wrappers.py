@@ -341,7 +341,7 @@ def _make_atari_core(env, max_episode_len=None, episodic_life=True,
         env = ClipRewardEnv(env)
 
     if frame_stack:
-        env = FrameStack(env, 4)
+        env = FrameStack(env, 2)
 
     return env
 
