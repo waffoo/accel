@@ -1,4 +1,4 @@
-env: HumanoidBulletEnv-v0
+env: HalfCheetah-v2
 load: ""
 device: ""
 demo: False
@@ -16,4 +16,5 @@ record_size: 1_000_000
 eval_times: 3
 reward_scale: 1.
 gif_eval_ratio: 10
+bullet: False
 comet: False

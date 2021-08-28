@@ -6,7 +6,6 @@ from comet_ml import Experiment  # isort: split
 import gym
 import hydra
 import numpy as np
-import pybullet_envs
 import torch
 
 from accel.agents.sac import SAC
@@ -18,10 +17,15 @@ logger = getLogger(__name__)
 logger.setLevel(DEBUG)
 
 
-@hydra.main(config_path='config', config_name='bullet_sac')
+@hydra.main(config_path='config', config_name='mujoco_sac')
 def main(cfg):
     set_seed(cfg.seed)
     cwd = hydra.utils.get_original_cwd()
+
+    if cfg.bullet:
+        import pybullet_envs
+    else:
+        import mujoco_py
 
     if cfg.comet:
         comet_username = os.environ['COMET_USERNAME']
@@ -42,10 +46,10 @@ def main(cfg):
     agent = SAC(device=cfg.device, observation_space=env.observation_space,
                 action_space=env.action_space, gamma=cfg.gamma,
                 replay_buffer=memory, update_interval=1, load=cfg.load,
-                bullet=True)
+                bullet=cfg.bullet)
 
     if cfg.demo:
-        agent.eval(eval_env, n_epis=10, render=True)
+        agent.eval(eval_env, n_epis=10, render=True, record_n_epis=1)
         exit(0)
 
     next_eval_cnt = 1
@@ -65,7 +69,7 @@ def main(cfg):
         comet_exp = Experiment(project_name='accel',
                                api_key=comet_api_token,
                                workspace=comet_username)
-        comet_exp.add_tag('bullet_sac')
+        comet_exp.add_tag('mujoco_sac')
         comet_exp.add_tag(cfg.env)
         comet_exp.set_name(cfg.name)
 
@@ -74,6 +78,9 @@ def main(cfg):
             'gamma': cfg.gamma,
             'replay': cfg.replay_capacity,
             'nstep': cfg.nstep,
+            'initial_random_steps': cfg.initial_random_steps,
+            'bullet': cfg.bullet,
+            'reward_scale': cfg.reward_scale,
             'eval_times': cfg.eval_times,
             'env': cfg.env,
         }
