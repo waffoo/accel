@@ -1,36 +1,38 @@
-import argparse
 import datetime
 import os
-import random
-import time
+from logging import DEBUG, getLogger
+from time import time
 
 import gym
 import hydra
 import numpy as np
 import pybullet_envs
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 from accel.agents.sac import SAC
 from accel.replay_buffers.replay_buffer import ReplayBuffer
-from accel.utils.utils import set_seed
+from accel.utils.utils import save_as_video, set_seed
 from accel.utils.wrappers import RewardScaler
+
+logger = getLogger(__name__)
+logger.setLevel(DEBUG)
 
 
 @hydra.main(config_path='config', config_name='bullet_sac')
 def main(cfg):
     set_seed(cfg.seed)
+    cwd = hydra.utils.get_original_cwd()
 
     env = RewardScaler(gym.make(cfg.env), scale=cfg.reward_scale)
     eval_env = gym.make(cfg.env)
-    # env = gym.wrappers.Monitor(env, 'movie', force=True)
-    # env.render(mode='human')
 
     if not cfg.device:
         cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    memory = ReplayBuffer(capacity=cfg.replay_capacity)  # TODO assert nstep=1
+    memory = ReplayBuffer(capacity=cfg.replay_capacity, record_size=cfg.record_size,
+                          record_outdir=os.path.join(
+                              cwd, cfg.record_outdir, cfg.name)
+                          )  # TODO assert nstep=1
 
     agent = SAC(device=cfg.device, observation_space=env.observation_space,
                 action_space=env.action_space, gamma=cfg.gamma,
@@ -38,7 +40,7 @@ def main(cfg):
                 bullet=True)
 
     if cfg.demo:
-        agent.eval(eval_env, n_epis=10, render=True, record_n_epis=1)
+        agent.eval(eval_env, n_epis=10, render=True)
         exit(0)
 
     next_eval_cnt = 1
@@ -47,19 +49,12 @@ def main(cfg):
     score_steps = []
     scores = []
 
-    if not os.path.exists('results'):
-        os.mkdir('results')
-
-    timestamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
-    result_dir = f'results/{timestamp}'
-
-    if not os.path.exists(result_dir):
-        os.mkdir(result_dir)
-
-    log_file_name = f'{result_dir}/scores.txt'
+    log_file_name = f'scores.txt'
     best_score = -1e10
 
-    train_start_time = time.time()
+    train_start_time = time()
+
+    train_rewards = []
 
     while agent.total_steps < cfg.steps:
         episode_cnt += 1
@@ -85,44 +80,61 @@ def main(cfg):
 
             obs = next_obs
 
+        logger.info(f'Train episode: {episode_cnt} '
+                    f'steps: {step} '
+                    f'total_steps:{agent.total_steps} '
+                    f'score:{total_reward:.2f} '
+                    )
+        train_rewards.append(total_reward)
+
+        final_flag = not (agent.total_steps < cfg.steps)
         if agent.total_steps >= next_eval_cnt * cfg.eval_interval:
-            total_reward = 0
-
-            obs = eval_env.reset()
-            done = False
-
-            while not done:
-                action = agent.act(obs, greedy=True)
-                obs, reward, done, _ = eval_env.step(action)
-
-                total_reward += reward
+            gif_flag = next_eval_cnt % cfg.gif_eval_ratio == 0
 
             next_eval_cnt += 1
+            ave_r, rewards, frames = agent.eval(eval_env,
+                                                n_epis=cfg.eval_times,
+                                                record_n_epis=1)
 
             score_steps.append(agent.total_steps)
-            scores.append(total_reward)
+            scores.append(ave_r)
+            ave_train_r = np.array(train_rewards).mean()
+            train_rewards = []
 
-            if total_reward > best_score:
-                dirname = f'{result_dir}/{agent.total_steps}'
-                if not os.path.exists(dirname):
-                    os.mkdir(dirname)
-                model_name = f'{dirname}/q1.model'
+            if gif_flag:
+                gifname = f'eval{agent.total_steps}.gif'
+                save_as_video(gifname, frames)
+                logger.debug(f'save {gifname}')
+
+            elapsed = time() - train_start_time
+            logger.info(
+                f'Eval result | total_step: {agent.total_steps} '
+                f'score: {ave_r:.1f} train_score: {ave_train_r:.1f}'
+                f'  elapsed: {elapsed:.1f}')
+
+            if ave_r > best_score:
+                best_score = ave_r
+
+                model_name = 'best_q1.model'
                 torch.save(agent.critic1.state_dict(), model_name)
-                model_name = f'{dirname}/q2.model'
+                model_name = 'best_q2.model'
                 torch.save(agent.critic2.state_dict(), model_name)
-                model_name = f'{dirname}/pi.model'
+                model_name = 'best_pi.model'
                 torch.save(agent.actor.state_dict(), model_name)
+                logger.info('save model')
 
-                best_score = total_reward
-
-            now = time.time()
-            elapsed = now - train_start_time
-
-            log = f'{agent.total_steps} {total_reward} {elapsed:.1f}\n'
-            print(log, end='')
-
+            log = f'{agent.total_steps} {ave_r} {elapsed:.1f}\n'
             with open(log_file_name, 'a') as f:
                 f.write(log)
+
+            if final_flag:
+                model_name = 'final_q1.model'
+                torch.save(agent.critic1.state_dict(), model_name)
+                model_name = 'final_q2.model'
+                torch.save(agent.critic2.state_dict(), model_name)
+                model_name = 'final_pi.model'
+                torch.save(agent.actor.state_dict(), model_name)
+                logger.info('save final model')
 
     print('Complete')
     env.close()
