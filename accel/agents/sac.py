@@ -1,4 +1,5 @@
 import copy
+from logging import getLogger
 
 import numpy as np
 import torch
@@ -8,6 +9,8 @@ from torch.distributions import Normal
 from torch.optim import Adam
 
 from accel.replay_buffers.replay_buffer import Transition
+
+logger = getLogger(__name__)
 
 
 class CriticNet(nn.Module):
@@ -58,7 +61,8 @@ class SAC:
                  batch_size=256,
                  update_interval=1,
                  target_update_interval=1,
-                 load=""):
+                 load="",
+                 bullet=False):
         self.device = device
         self.n_obs = observation_space.shape[0]
         self.n_actions = action_space.shape[0]
@@ -106,6 +110,8 @@ class SAC:
         self.batch_size = batch_size
         self.update_interval = update_interval
         self.prev_target_update_time = 0
+
+        self.bullet = bullet
 
     def act(self, obs, greedy=False):
         obs = torch.tensor(obs, device=self.device, dtype=torch.float32)[None]
@@ -215,3 +221,57 @@ class SAC:
     def soft_update(self, target, source):
         for t, s in zip(target.parameters(), source.parameters()):
             t.data.copy_(t.data * (1.0 - self.tau) + s.data * self.tau)
+
+    def _add_obs_to_frame(self, obs, frames):
+        frames.append(obs)
+
+    def _eval_one_episode(self, env, frames, record=False, render=False):
+        total_reward = 0
+
+        while True:
+            obs = env.reset()
+            if not self.bullet and render:
+                env.render()
+            if record:
+                img = env.render(mode='rgb_array')
+                self._add_obs_to_frame(img, frames)
+            done = False
+
+            while not done:
+                action = self.act(obs, greedy=True)
+                obs, reward, done, _ = env.step(action)
+                if not self.bullet and render:
+                    env.render()
+                if record:
+                    img = env.render(mode='rgb_array')
+                    self._add_obs_to_frame(img, frames)
+
+                total_reward += reward
+
+            if not hasattr(env, 'was_real_done') or env.was_real_done:
+                break
+
+        return total_reward
+
+    def eval(self, env, n_epis=1, render=False, record_n_epis=0):
+        if self.bullet and render:
+            env.render(mode='human')
+
+        logger.info(f'Evaluation start')
+        assert record_n_epis <= n_epis
+        rewards = []
+        frames = []
+        for t in range(n_epis):
+            r = self._eval_one_episode(env,
+                                       frames=frames,
+                                       record=t < record_n_epis,
+                                       render=render)
+            rewards.append(r)
+            logger.info(f'Episode {t+1} Score: {r}')
+            if t < record_n_epis:
+                logger.debug('This episode has been recorded.')
+
+        rewards = np.array(rewards)
+        mean = rewards.mean()
+        logger.info(f'Average score over {n_epis} episodes: {mean:.2f}')
+        return mean, rewards, frames

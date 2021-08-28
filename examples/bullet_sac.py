@@ -22,18 +22,11 @@ from accel.utils.wrappers import RewardScaler
 def main(cfg):
     set_seed(cfg.seed)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--scale', type=float, default=1.,
-                        help='reward scale')
-    args = parser.parse_args()
-
-    env = RewardScaler(gym.make(cfg.env), scale=args.scale)
+    env = RewardScaler(gym.make(cfg.env), scale=cfg.reward_scale)
     eval_env = gym.make(cfg.env)
     # env = gym.wrappers.Monitor(env, 'movie', force=True)
     # env.render(mode='human')
 
-    n_states = env.observation_space.shape[0]
-    n_actions = len(env.action_space.low)
     if not cfg.device:
         cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -41,27 +34,12 @@ def main(cfg):
 
     agent = SAC(device=cfg.device, observation_space=env.observation_space,
                 action_space=env.action_space, gamma=cfg.gamma,
-                replay_buffer=memory, update_interval=1, load=cfg.load)
+                replay_buffer=memory, update_interval=1, load=cfg.load,
+                bullet=True)
 
     if cfg.demo:
-        eval_env.render(mode='human')
-        for x in range(10):
-            total_reward = 0
-
-            obs = eval_env.reset()
-            done = False
-
-            while not done:
-                action = agent.act(obs, greedy=True)
-                obs, reward, done, _ = eval_env.step(action)
-
-                total_reward += reward
-
-            print(f'Episode: {x+1}  Score:{total_reward}')
-
+        agent.eval(eval_env, n_epis=10, render=True, record_n_epis=1)
         exit(0)
-
-    initial_random_steps = 10**3
 
     next_eval_cnt = 1
     episode_cnt = 0
@@ -92,7 +70,7 @@ def main(cfg):
         step = 0
 
         while not done:
-            if agent.total_steps > initial_random_steps:
+            if agent.total_steps > cfg.initial_random_steps:
                 action = agent.act(obs)
             else:
                 action = env.action_space.sample()

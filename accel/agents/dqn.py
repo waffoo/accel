@@ -186,7 +186,8 @@ class DQN:
                                        render=render)
             rewards.append(r)
             logger.info(f'Episode {t+1} Score: {r}')
-            logger.debug('This episode has been recorded.')
+            if t < record_n_epis:
+                logger.debug('This episode has been recorded.')
 
         rewards = np.array(rewards)
         mean = rewards.mean()
