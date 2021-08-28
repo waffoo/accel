@@ -1,8 +1,8 @@
-import datetime
 import os
 from logging import DEBUG, getLogger
 from time import time
 
+from comet_ml import Experiment  # isort: split
 import gym
 import hydra
 import numpy as np
@@ -22,6 +22,11 @@ logger.setLevel(DEBUG)
 def main(cfg):
     set_seed(cfg.seed)
     cwd = hydra.utils.get_original_cwd()
+
+    if cfg.comet:
+        comet_username = os.environ['COMET_USERNAME']
+        comet_api_token = os.environ['COMET_API_TOKEN']
+        logger.debug(f'Comet username: {comet_username}')
 
     env = RewardScaler(gym.make(cfg.env), scale=cfg.reward_scale)
     eval_env = gym.make(cfg.env)
@@ -55,6 +60,23 @@ def main(cfg):
     train_start_time = time()
 
     train_rewards = []
+
+    if cfg.comet:
+        comet_exp = Experiment(project_name='accel',
+                               api_key=comet_api_token,
+                               workspace=comet_username)
+        comet_exp.add_tag(cfg.env)
+        comet_exp.set_name(cfg.name)
+
+        comet_params = {
+            'seed': cfg.seed,
+            'gamma': cfg.gamma,
+            'replay': cfg.replay_capacity,
+            'nstep': cfg.nstep,
+            'eval_times': cfg.eval_times,
+            'env': cfg.env,
+        }
+        comet_exp.log_parameters(comet_params)
 
     while agent.total_steps < cfg.steps:
         episode_cnt += 1
@@ -104,6 +126,8 @@ def main(cfg):
             if gif_flag:
                 gifname = f'eval{agent.total_steps}.gif'
                 save_as_video(gifname, frames)
+                comet_exp.log_image(
+                    gifname, name='eval_agent', step=agent.total_steps)
                 logger.debug(f'save {gifname}')
 
             elapsed = time() - train_start_time
@@ -111,17 +135,29 @@ def main(cfg):
                 f'Eval result | total_step: {agent.total_steps} '
                 f'score: {ave_r:.1f} train_score: {ave_train_r:.1f}'
                 f'  elapsed: {elapsed:.1f}')
+            comet_exp.log_metric('reward', ave_r, step=agent.total_steps)
 
             if ave_r > best_score:
                 best_score = ave_r
 
                 model_name = 'best_q1.model'
                 torch.save(agent.critic1.state_dict(), model_name)
+                if cfg.comet:
+                    comet_exp.log_model('best_q1', model_name, overwrite=True)
+
                 model_name = 'best_q2.model'
                 torch.save(agent.critic2.state_dict(), model_name)
+                if cfg.comet:
+                    comet_exp.log_model('best_q2', model_name, overwrite=True)
+
                 model_name = 'best_pi.model'
                 torch.save(agent.actor.state_dict(), model_name)
+                if cfg.comet:
+                    comet_exp.log_model('best_pi', model_name, overwrite=True)
+
                 logger.info('save model')
+                comet_exp.log_metric('best_timestep', agent.total_steps)
+                comet_exp.log_metric('best_score', best_score)
 
             log = f'{agent.total_steps} {ave_r} {elapsed:.1f}\n'
             with open(log_file_name, 'a') as f:
@@ -130,11 +166,25 @@ def main(cfg):
             if final_flag:
                 model_name = 'final_q1.model'
                 torch.save(agent.critic1.state_dict(), model_name)
+                if cfg.comet:
+                    comet_exp.log_model('final_q1', model_name)
+
                 model_name = 'final_q2.model'
                 torch.save(agent.critic2.state_dict(), model_name)
+                if cfg.comet:
+                    comet_exp.log_model('final_q2', model_name)
+
                 model_name = 'final_pi.model'
                 torch.save(agent.actor.state_dict(), model_name)
+                if cfg.comet:
+                    comet_exp.log_model('final_pi', model_name)
+
                 logger.info('save final model')
+
+    duration = np.round(elapsed / 60 / 60, 2)
+    if cfg.comet:
+        comet_exp.log_metric('duration', duration)
+        comet_exp.log_artifact(log_file_name)
 
     print('Complete')
     env.close()

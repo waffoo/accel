@@ -11,6 +11,7 @@ pytest = "^6.0.2"
 scikit-learn = "^0.24.2"
 typing-extensions = "^3.10.0"
 pygifsicle = "^1.0.4"
+comet-ml = "^3.15.1"
 
 [tool.poetry.dev-dependencies]
 pybullet = "^3.0.4"
