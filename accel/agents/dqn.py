@@ -169,7 +169,7 @@ class DQN:
 
                 total_reward += reward
 
-            if hasattr(env, 'was_real_done') and env.was_real_done:
+            if not hasattr(env, 'was_real_done') or env.was_real_done:
                 break
 
         return total_reward

@@ -21,6 +21,7 @@ atari-py = "0.2.6"
 procgen = "^0.10.4"
 imageio = "^2.9.0"
 pygifsicle = "^1.0.4"
+mujoco-py = "^2.0.2"
 
 [build-system]
 requires = ["poetry>=0.12"]
