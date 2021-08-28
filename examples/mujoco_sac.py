@@ -26,6 +26,8 @@ def main(cfg):
         import pybullet_envs
     else:
         import mujoco_py
+        if not cfg.demo:
+            mujoco_py.GlfwContext(offscreen=True)
 
     if cfg.comet:
         comet_username = os.environ['COMET_USERNAME']
@@ -49,7 +51,7 @@ def main(cfg):
                 bullet=cfg.bullet)
 
     if cfg.demo:
-        agent.eval(eval_env, n_epis=10, render=True, record_n_epis=1)
+        agent.eval(eval_env, n_epis=10, render=True)
         exit(0)
 
     next_eval_cnt = 1
