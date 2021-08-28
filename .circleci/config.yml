@@ -13,6 +13,7 @@ jobs:
                       sudo apt install cmake
                       pip install -U pip
                       pip install .
+                      pip install torch
                       pip install pycodestyle isort
             - save_cache:
                   key: accel-{{ checksum "pyproject.toml" }}

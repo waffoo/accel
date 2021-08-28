@@ -4,7 +4,8 @@
 Accel is an open source library for reinforcement learning.
 
 ## Install
-You can install Accel via pip (>=19.0) by entering the following command:
+Accel is based on PyTorch. You must install PyTorch by yourself in advance.  
+Then, you can install Accel via pip (>=19.0) by
 ```
 $ pip install git+https://github.com/waffoo/accel
 ```
