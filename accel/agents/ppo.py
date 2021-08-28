@@ -1,8 +1,8 @@
 import os
 import time
 from collections import namedtuple
+from logging import DEBUG, getLogger
 
-import mlflow
 import numpy as np
 import torch
 import torch.nn as nn
@@ -14,12 +14,14 @@ from torch.utils.data import DataLoader
 from accel.explorers.epsilon_greedy import LinearDecayEpsilonGreedy
 from accel.replay_buffers.rollout_buffer import RolloutBuffer, Transition
 
+logger = getLogger(__name__)
+
 
 class PPO:
     def __init__(self, envs, eval_env, steps, actor, critic,
                  device, lmd=0.95, gamma=0.99, batch_size=128,
                  lr=2.5e-4, horizon=128, clip_eps=0.2, epoch_per_update=4, entropy_coef=0.01,
-                 load="", eval_interval=50000, epoch_per_eval=3, mlflow=False, value_loss_coef=0.5,
+                 load="", eval_interval=50000, epoch_per_eval=3, comet_exp=None, value_loss_coef=0.5,
                  value_clipping=True, atari=False):
         self.envs = envs
         self.eval_env = eval_env
@@ -33,7 +35,6 @@ class PPO:
         self.eval_interval = eval_interval
         self.epoch_per_eval = epoch_per_eval
         self.lr = lr
-        self.mlflow = mlflow
         self.value_loss_coef = value_loss_coef
         self.value_clipping = value_clipping
         self.atari = atari
@@ -58,6 +59,8 @@ class PPO:
                 f'{load}/actor.model', map_location=device))
             self.critic.load_state_dict(torch.load(
                 f'{load}/critic.model', map_location=device))
+
+        self.comet_exp = comet_exp
 
     def act(self, obs, greedy=False):
         pass
@@ -188,19 +191,22 @@ class PPO:
             self.actor.eval()
 
             if self.elapsed_step >= self.next_eval_cnt * self.eval_interval:
-                mlflow.log_metric(
-                    'value_loss', value_loss_epoch, step=self.elapsed_step)
-                mlflow.log_metric(
-                    'actor_loss', actor_loss_epoch, step=self.elapsed_step)
-                mlflow.log_metric(
-                    'entropy_bonus', entropy_bonus_epoch, step=self.elapsed_step)
+                if self.comet_exp is not None:
+                    dic = {
+                        'value_loss': value_loss_epoch,
+                        'actor_loss': actor_loss_epoch,
+                        'entropy_bonus': entropy_bonus_epoch
+                    }
+                    self.comet_exp.log_metrics(dic, step=self.elapsed_step)
 
                 self.evaluate()
 
-        if self.mlflow:
+        if self.comet_exp is not None:
             now = time.time()
             elapsed = now - self.train_start_time
-            mlflow.log_metric('duration', np.round(elapsed / 60 / 60, 2))
+            self.comet_exp.log_metric(
+                'duration', np.round(
+                    elapsed / 60 / 60, 2))
         print('Complete')
 
     def evaluate(self):
@@ -233,8 +239,9 @@ class PPO:
                         break
 
         total_reward /= self.epoch_per_eval
-        if self.mlflow:
-            mlflow.log_metric('reward', total_reward, step=self.elapsed_step)
+        if self.comet_exp is not None:
+            self.comet_exp.log_metric(
+                'reward', total_reward, step=self.elapsed_step)
 
         if total_reward > self.best_score:
             self.best_score = total_reward
@@ -242,13 +249,25 @@ class PPO:
             if not os.path.exists(dirname):
                 os.mkdir(dirname)
 
-            torch.save(self.actor.state_dict(), f'{dirname}/actor.model')
-            torch.save(self.critic.state_dict(), f'{dirname}/critic.model')
+            model_name = f'{dirname}/actor.model'
+            torch.save(self.actor.state_dict(), model_name)
+            if self.comet_exp is not None:
+                self.comet_exp.log_model(
+                    'best_actor', model_name, overwrite=True)
+
+            model_name = f'{dirname}/critic.model'
+            torch.save(self.critic.state_dict(), model_name)
+            if self.comet_exp is not None:
+                self.comet_exp.log_model(
+                    'best_critic', model_name, overwrite=True)
 
         now = time.time()
         elapsed = now - self.train_start_time
         log = f'{self.elapsed_step} {total_reward:.1f} {elapsed:.1f}\n'
-        print(log, end='')
+
+        logger.info(
+            f'Eval result | total_step: {self.elapsed_step} '
+            f'score: {total_reward:.1f} elapsed: {elapsed:.1f}')
 
         with open(self.log_file_name, 'a') as f:
             f.write(log)

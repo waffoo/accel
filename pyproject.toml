@@ -21,8 +21,6 @@ atari-py = "0.2.6"
 procgen = "^0.10.4"
 imageio = "^2.9.0"
 pygifsicle = "^1.0.4"
-pandas = "1.2.5"
-mlflow = "^1.18.0"
 
 [build-system]
 requires = ["poetry>=0.12"]

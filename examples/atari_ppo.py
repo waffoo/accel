@@ -1,9 +1,10 @@
 import os
+from logging import DEBUG, getLogger
 from time import time
 
+from comet_ml import Experiment  # isort: split
 import gym
 import hydra
-import mlflow
 import numpy as np
 # from gym.utils.play import play import random
 import torch
@@ -15,6 +16,9 @@ from accel.agents import ppo
 from accel.explorers import epsilon_greedy
 from accel.utils.atari_wrappers import callable_atari_wrapper, make_atari
 from accel.utils.utils import set_seed
+
+logger = getLogger(__name__)
+logger.setLevel(DEBUG)
 
 
 def init(module, weight_init, bias_init, gain=1.):
@@ -116,56 +120,74 @@ class CriticMLPNet(nn.Module):
         return self.l3(h2)
 
 
-@hydra.main(config_name='config/atari_ppo_config.yaml')
+@hydra.main(config_path='config', config_name='atari_ppo_config')
 def main(cfg):
     set_seed(cfg.seed)
 
     cwd = hydra.utils.get_original_cwd()
+    if cfg.comet:
+        comet_username = os.environ['COMET_USERNAME']
+        comet_api_token = os.environ['COMET_API_TOKEN']
+        logger.debug(f'Comet username: {comet_username}')
+
     if cfg.load:
         cfg.load = os.path.join(cwd, cfg.load)
-    mlflow.set_tracking_uri(os.path.join(cwd, 'mlruns'))
-    mlflow.set_experiment('atari_ppo')
 
-    with mlflow.start_run(run_name=cfg.name):
-        mlflow.log_param('seed', cfg.seed)
-        mlflow.log_param('gamma', cfg.gamma)
-        mlflow.log_param('parallel', cfg.parallel)
-        mlflow.log_param('color', cfg.color)
-        mlflow.log_param('high', cfg.high_reso)
-        mlflow.log_param('no_stack', cfg.no_stack)
-        mlflow.log_param('batch_size', cfg.batch_size)
-        mlflow.set_tag('env', cfg.env)
+    if not cfg.device:
+        cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-        if not cfg.device:
-            cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if cfg.atari:
+        wrapper = callable_atari_wrapper(
+            color=cfg.color, frame_stack=not cfg.no_stack)
+        envs = gym.vector.make(cfg.env, cfg.parallel, wrappers=wrapper)
+        eval_env = make_atari(
+            cfg.env, color=cfg.color, frame_stack=not cfg.no_stack, clip_rewards=False)
+    else:
+        envs = gym.vector.make(cfg.env, cfg.parallel)
+        eval_env = gym.make(cfg.env)
 
-        if cfg.atari:
-            wrapper = callable_atari_wrapper(
-                color=cfg.color, frame_stack=not cfg.no_stack)
-            envs = gym.vector.make(cfg.env, cfg.parallel, wrappers=wrapper)
-            eval_env = make_atari(
-                cfg.env, color=cfg.color, frame_stack=not cfg.no_stack, clip_rewards=False)
-        else:
-            envs = gym.vector.make(cfg.env, cfg.parallel)
-            eval_env = gym.make(cfg.env)
+    dim_state = envs.observation_space.shape[1]
+    dim_action = envs.action_space[0].n
 
-        dim_state = envs.observation_space.shape[1]
-        dim_action = envs.action_space[0].n
+    if len(eval_env.observation_space.shape) == 3:
+        actor = ActorNet(dim_state, dim_action, high_reso=cfg.high_reso)
+        critic = CriticNet(dim_state, high_reso=cfg.high_reso)
+    else:
+        actor = ActorMLPNet(dim_state, dim_action, high_reso=cfg.high_reso)
+        critic = CriticMLPNet(dim_state, high_reso=cfg.high_reso)
 
-        if len(eval_env.observation_space.shape) == 3:
-            actor = ActorNet(dim_state, dim_action, high_reso=cfg.high_reso)
-            critic = CriticNet(dim_state, high_reso=cfg.high_reso)
-        else:
-            actor = ActorMLPNet(dim_state, dim_action, high_reso=cfg.high_reso)
-            critic = CriticMLPNet(dim_state, high_reso=cfg.high_reso)
+    if cfg.comet:
+        comet_exp = Experiment(project_name='accel',
+                               api_key=comet_api_token,
+                               workspace=comet_username)
+        comet_exp.add_tag('atari_ppo')
+        comet_exp.add_tag(cfg.env)
+        comet_exp.set_name(cfg.name)
 
-        agent2 = ppo.PPO(envs, eval_env, cfg.steps,
-                         actor=actor, critic=critic, lmd=0.9, gamma=cfg.gamma,
-                         device=cfg.device, batch_size=cfg.batch_size, load=cfg.load, eval_interval=cfg.eval_interval,
-                         clip_eps=0.1, mlflow=True, value_loss_coef=cfg.value_loss_coef,
-                         value_clipping=cfg.value_clipping, atari=True)
+        comet_params = {
+            'seed': cfg.seed,
+            'gamma': cfg.gamma,
+            'parallel': cfg.parallel,
+            'color': cfg.color,
+            'high': cfg.high_reso,
+            'no_stack': cfg.no_stack,
+            'batch_size': cfg.batch_size,
+            'value_loss_coef': cfg.value_loss_coef,
+            'value_clipping': cfg.value_clipping,
+            'env': cfg.env,
+        }
 
-        agent2.run()
+        comet_exp.log_parameters(comet_params)
+    else:
+        comet_exp = None
+
+    agent2 = ppo.PPO(envs, eval_env, cfg.steps,
+                     actor=actor, critic=critic, lmd=0.9, gamma=cfg.gamma,
+                     device=cfg.device, batch_size=cfg.batch_size, load=cfg.load, eval_interval=cfg.eval_interval,
+                     clip_eps=0.1, comet_exp=comet_exp, value_loss_coef=cfg.value_loss_coef,
+                     value_clipping=cfg.value_clipping, atari=True)
+
+    agent2.run()
 
 
 if __name__ == '__main__':
