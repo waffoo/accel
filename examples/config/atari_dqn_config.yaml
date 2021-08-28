@@ -4,7 +4,7 @@ device: ""
 demo: False
 steps: 5_000_000
 seed: 0
-eval_interval: 10_000
+eval_interval: 50_000
 gamma: 0.99
 replay_capacity: 100_000
 dueling: False
@@ -22,3 +22,5 @@ record_outdir: dataset
 record_size: 1_000_000
 eval_times: 3
 train_record: False
+gif_eval_ratio: 10
+comet: False

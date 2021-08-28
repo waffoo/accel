@@ -2,9 +2,9 @@ import os
 from logging import DEBUG, getLogger
 from time import time
 
+from comet_ml import Experiment  # isort: split
 import gym
 import hydra
-import mlflow
 import numpy as np
 import torch
 import torch.nn as nn
@@ -60,6 +60,11 @@ def main(cfg):
     set_seed(cfg.seed)
 
     cwd = hydra.utils.get_original_cwd()
+
+    if cfg.comet:
+        comet_username = os.environ['COMET_USERNAME']
+        comet_api_token = os.environ['COMET_API_TOKEN']
+        logger.debug(f'Comet username: {comet_username}')
 
     if not cfg.device:
         cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -120,118 +125,134 @@ def main(cfg):
     log_file_name = 'scores.txt'
     best_score = -1e10
 
-    mlflow.set_tracking_uri(os.path.join(cwd, 'mlruns'))
-    mlflow.set_experiment('atari_dqn')
+    if cfg.comet:
+        comet_exp = Experiment(project_name='accel',
+                               api_key=comet_api_token,
+                               workspace=comet_username)
+        comet_exp.add_tag('atari_dqn')
+        comet_exp.add_tag(cfg.env)
+        comet_exp.set_name(cfg.name)
 
-    with mlflow.start_run(run_name=cfg.name):
+        comet_params = {
+            'seed': cfg.seed,
+            'gamma': cfg.gamma,
+            'replay': cfg.replay_capacity,
+            'dueling': cfg.dueling,
+            'prioritized': cfg.prioritized,
+            'color': cfg.color,
+            'high': cfg.high_reso,
+            'no_stack': cfg.no_stack,
+            'nstep': cfg.nstep,
+            'adam': cfg.adam,
+            'end_eps': cfg.end_eps,
+            'eval_times': cfg.eval_times,
+            'env': cfg.env,
+        }
 
-        mlflow.log_param('seed', cfg.seed)
-        mlflow.log_param('gamma', cfg.gamma)
-        mlflow.log_param('replay', cfg.replay_capacity)
-        mlflow.log_param('dueling', cfg.dueling)
-        mlflow.log_param('prioritized', cfg.prioritized)
-        mlflow.log_param('color', cfg.color)
-        mlflow.log_param('high', cfg.high_reso)
-        mlflow.log_param('no_stack', cfg.no_stack)
-        mlflow.log_param('nstep', cfg.nstep)
-        mlflow.log_param('adam', cfg.adam)
-        mlflow.log_param('end_eps', cfg.end_eps)
-        mlflow.log_param('eval_times', cfg.eval_times)
-        mlflow.set_tag('env', cfg.env)
+        comet_exp.log_parameters(comet_params)
 
-        while agent.total_steps < cfg.steps:
-            episode_cnt += 1
+    while agent.total_steps < cfg.steps:
+        episode_cnt += 1
 
-            train_frames = []
-            total_reward = 0
-            step = 0
-            while True:
-                obs = env.reset()
+        train_frames = []
+        total_reward = 0
+        step = 0
+        while True:
+            obs = env.reset()
+            if cfg.train_record:
+                agent._add_obs_to_frame(obs, train_frames)
+            done = False
+
+            while not done:
+                action = agent.act(obs)
+                next_obs, reward, done, info = env.step(action)
+                total_reward += reward
+                step += 1
+
+                timeout_label = 'TimeLimit.truncated'
+                timeout = hasattr(
+                    info, timeout_label) and info[timeout_label]
+                next_valid = 1. if timeout else float(not done)
+                agent.update(obs, action, next_obs, reward, next_valid)
+
+                obs = next_obs
                 if cfg.train_record:
                     agent._add_obs_to_frame(obs, train_frames)
-                done = False
 
-                while not done:
-                    action = agent.act(obs)
-                    next_obs, reward, done, info = env.step(action)
-                    total_reward += reward
-                    step += 1
+            if hasattr(env, 'was_real_done') and env.was_real_done:
+                break
 
-                    timeout_label = 'TimeLimit.truncated'
-                    timeout = hasattr(
-                        info, timeout_label) and info[timeout_label]
-                    next_valid = 1. if timeout else float(not done)
-                    agent.update(obs, action, next_obs, reward, next_valid)
+        logger.info(f'Train episode: {episode_cnt} '
+                    f'steps: {step} '
+                    f'total_steps:{agent.total_steps} '
+                    f'score:{total_reward}')
 
-                    obs = next_obs
-                    if cfg.train_record:
-                        agent._add_obs_to_frame(obs, train_frames)
+        final_flag = not (agent.total_steps < cfg.steps)
 
-                if hasattr(env, 'was_real_done') and env.was_real_done:
-                    break
-
-            logger.info(f'Train episode: {episode_cnt} '
-                        f'steps: {step} '
-                        f'total_steps:{agent.total_steps} '
-                        f'score:{total_reward}')
-
-            final_flag = not (agent.total_steps < cfg.steps)
-
-            if agent.total_steps > next_eval_cnt * cfg.eval_interval or final_flag:
-                if cfg.train_record:
-                    gifname = f'train{agent.total_steps}.gif'
-                    save_as_video(gifname, train_frames)
-                    mlflow.log_artifact(gifname, artifact_path='train')
-                    logger.debug(f'save {gifname}')
-
-                next_eval_cnt += 1
-                ave_r, rewards, frames = agent.eval(eval_env,
-                                                    n_epis=cfg.eval_times,
-                                                    record_n_epis=1)
-
-                gifname = f'eval{agent.total_steps}.gif'
-                save_as_video(gifname, frames)
-                mlflow.log_artifact(gifname, artifact_path='eval')
+        if agent.total_steps > next_eval_cnt * cfg.eval_interval or final_flag:
+            gif_flag = next_eval_cnt % cfg.gif_eval_ratio == 0
+            if gif_flag and cfg.train_record:
+                gifname = f'train{agent.total_steps}.gif'
+                save_as_video(gifname, train_frames)
+                if cfg.comet:
+                    comet_exp.log_image(
+                        gifname,
+                        name='train_agent',
+                        step=agent.total_steps)
                 logger.debug(f'save {gifname}')
 
-                elapsed = time() - train_start_time
-                logger.info(
-                    f'Eval result | total_step: {agent.total_steps} '
-                    f'score: {ave_r} elapsed: {elapsed:.1f}')
-                mlflow.log_metric('reward', ave_r, step=agent.total_steps)
+            next_eval_cnt += 1
+            ave_r, rewards, frames = agent.eval(eval_env,
+                                                n_epis=cfg.eval_times,
+                                                record_n_epis=1)
 
-                log = f'{agent.total_steps} {ave_r} {elapsed:.1f}\n'
-                with open(log_file_name, 'a') as f:
-                    f.write(log)
+            gifname = f'eval{agent.total_steps}.gif'
+            save_as_video(gifname, frames)
+            if cfg.comet:
+                comet_exp.log_image(
+                    gifname,
+                    name='eval_agent',
+                    step=agent.total_steps,
+                )
+            logger.debug(f'save {gifname}')
 
-                if ave_r > best_score:
-                    model_name = f'best.model'
-                    torch.save(q_func.state_dict(), model_name)
-                    mlflow.log_artifact(model_name)
+            elapsed = time() - train_start_time
+            logger.info(
+                f'Eval result | total_step: {agent.total_steps} '
+                f'score: {ave_r} elapsed: {elapsed:.1f}')
+            comet_exp.log_metric('reward', ave_r, step=agent.total_steps)
 
-                    best_ts_file = 'best_timestep.txt'
-                    best_sc_file = 'best_score.txt'
-                    with open(best_ts_file, 'w') as f:
-                        f.write(f'{agent.total_steps}\n')
-                    with open(best_sc_file, 'w') as f:
-                        f.write(f'{ave_r}\n')
-                    mlflow.log_artifact(model_name)
-                    mlflow.log_artifact(best_ts_file)
-                    mlflow.log_artifact(best_sc_file)
+            log = f'{agent.total_steps} {ave_r} {elapsed:.1f}\n'
+            with open(log_file_name, 'a') as f:
+                f.write(log)
 
-                    logger.info(f'save {model_name}')
-                    best_score = ave_r
+            if ave_r > best_score:
+                best_score = ave_r
 
-                if final_flag:
-                    model_name = f'final.model'
-                    torch.save(q_func.state_dict(), model_name)
-                    mlflow.log_artifact(model_name)
-                    logger.info(f'save {model_name}')
+                model_name = f'best.model'
+                torch.save(q_func.state_dict(), model_name)
+                if cfg.comet:
+                    comet_exp.log_model(
+                        'best_model', model_name, overwrite=True)
+                    comet_exp.log_metric('best_timestep', agent.total_steps)
+                    comet_exp.log_metric('best_score', best_score)
 
-        duration = np.round(elapsed / 60 / 60, 2)
-        mlflow.log_metric('duration', duration)
-        print('Complete')
-        env.close()
+                logger.info(f'save {model_name}')
+
+            if final_flag:
+                model_name = f'final.model'
+                torch.save(q_func.state_dict(), model_name)
+                if cfg.comet:
+                    comet_exp.log_model('final_model', model_name)
+                logger.info(f'save {model_name}')
+
+    duration = np.round(elapsed / 60 / 60, 2)
+    if cfg.comet:
+        comet_exp.log_metric('duration', duration)
+        comet_exp.log_artifact(log_file_name)
+
+    print('Complete')
+    env.close()
 
 
 if __name__ == '__main__':

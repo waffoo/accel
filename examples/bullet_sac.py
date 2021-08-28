@@ -65,6 +65,7 @@ def main(cfg):
         comet_exp = Experiment(project_name='accel',
                                api_key=comet_api_token,
                                workspace=comet_username)
+        comet_exp.add_tag('bullet_sac')
         comet_exp.add_tag(cfg.env)
         comet_exp.set_name(cfg.name)
 
@@ -126,8 +127,9 @@ def main(cfg):
             if gif_flag:
                 gifname = f'eval{agent.total_steps}.gif'
                 save_as_video(gifname, frames)
-                comet_exp.log_image(
-                    gifname, name='eval_agent', step=agent.total_steps)
+                if cfg.comet:
+                    comet_exp.log_image(
+                        gifname, name='eval_agent', step=agent.total_steps)
                 logger.debug(f'save {gifname}')
 
             elapsed = time() - train_start_time
@@ -154,10 +156,10 @@ def main(cfg):
                 torch.save(agent.actor.state_dict(), model_name)
                 if cfg.comet:
                     comet_exp.log_model('best_pi', model_name, overwrite=True)
+                    comet_exp.log_metric('best_timestep', agent.total_steps)
+                    comet_exp.log_metric('best_score', best_score)
 
                 logger.info('save model')
-                comet_exp.log_metric('best_timestep', agent.total_steps)
-                comet_exp.log_metric('best_score', best_score)
 
             log = f'{agent.total_steps} {ave_r} {elapsed:.1f}\n'
             with open(log_file_name, 'a') as f:
