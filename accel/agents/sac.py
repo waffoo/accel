@@ -58,7 +58,7 @@ class SAC:
                  batch_size=256,
                  update_interval=1,
                  target_update_interval=1,
-                 load=None):
+                 load=""):
         self.device = device
         self.n_obs = observation_space.shape[0]
         self.n_actions = action_space.shape[0]
@@ -67,7 +67,7 @@ class SAC:
 
         self.gamma = gamma
         self.actor = ActorNet(self.n_obs, self.n_actions).to(device)
-        if load is not None:
+        if load:
             self.critic1.load_state_dict(torch.load(
                 f'{load}/q1.model', map_location=device))
             self.critic2.load_state_dict(torch.load(
