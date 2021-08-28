@@ -1,9 +1,9 @@
 import copy
 import os
 import time
+from logging import DEBUG, getLogger
 from os import system
 
-import mlflow
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -13,6 +13,8 @@ from accel.agents.dqn import DQN
 from accel.replay_buffers.prioritized_replay_buffer import \
     PrioritizedReplayBuffer
 from accel.replay_buffers.replay_buffer import Transition
+
+logger = getLogger(__name__)
 
 
 class OfflineDQN(DQN):
@@ -25,7 +27,8 @@ class OfflineDQN(DQN):
                  update_interval=4,
                  target_update_interval=200,
                  replay_start_step=10000,
-                 huber=False):
+                 huber=False,
+                 comet_exp=None):
         super().__init__(q_func, optimizer, replay_buffer, gamma, explorer,
                          device,
                          batch_size=batch_size,
@@ -40,9 +43,10 @@ class OfflineDQN(DQN):
         self.eval_env = eval_env
         self.outdir = outdir
         self.log_file_name = f'{self.outdir}/scores.txt'
+        self.comet_exp = comet_exp
 
     def set_dataset(self, dataset, num=None):
-        print('data registreation start')
+        logger.info('data registreation start')
         st = time.time()
 
         ob = dataset['state']
@@ -57,8 +61,8 @@ class OfflineDQN(DQN):
         all_li = list(zip(ob, ac, ne, re, va))
         result = list(map(lambda x: [Transition(*x)], all_li))
         gl = time.time()
-        print(f'data registreation took {np.round(gl-st, 2)} sec.')
-        print(f'{len(result) / 1e6} M transitions were registered.')
+        logger.info(f'data registreation took {np.round(gl-st, 2)} sec.')
+        logger.info(f'{len(result) / 1e6} M transitions were registered.')
 
         self.replay_buffer.memory = result
 
@@ -124,8 +128,9 @@ class OfflineDQN(DQN):
             torch.save(self.q_func.state_dict(), model_name)
             self.best_score = total_reward
 
-        mlflow.log_metric('reward', total_reward,
-                          step=self.total_steps)
+        if self.comet_exp is not None:
+            self.comet_exp.log_metric('reward', total_reward,
+                                      step=self.total_steps)
 
         now = time.time()
         log = f'{self.total_steps} {total_reward}'
@@ -133,10 +138,13 @@ class OfflineDQN(DQN):
             elapsed = now - self.train_start_time
             log += f' {elapsed:.1f}'
         log += '\n'
-        print(log, end='')
 
         with open(self.log_file_name, 'a') as f:
             f.write(log)
+
+        logger.info(
+            f'Eval result | total_step: {self.total_steps} '
+            f'score: {total_reward} elapsed: {elapsed:.1f}')
 
 
 class OfflineDoubleDQN(OfflineDQN):
@@ -158,7 +166,8 @@ class DQN_CQL(OfflineDoubleDQN):
                  update_interval=4,
                  target_update_interval=200,
                  replay_start_step=10000,
-                 huber=False
+                 huber=False,
+                 comet_exp=None,
                  ):
         super().__init__(eval_env,
                          outdir,  # e.g. timestamp/results
@@ -169,7 +178,9 @@ class DQN_CQL(OfflineDoubleDQN):
                          update_interval=update_interval,
                          target_update_interval=target_update_interval,
                          replay_start_step=replay_start_step,
-                         huber=huber)
+                         huber=huber,
+                         comet_exp=comet_exp
+                         )
 
         self.cql_weight = cql_weight
 

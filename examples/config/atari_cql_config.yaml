@@ -20,3 +20,4 @@ end_eps: 0.01
 record: False
 record_outdir: dataset
 record_size: 1_000_000
+comet: False
