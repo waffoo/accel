@@ -227,7 +227,8 @@ class SAC:
     def _add_obs_to_frame(self, obs, frames):
         frames.append(obs)
 
-    def _eval_one_episode(self, env, frames, record=False, render=False, success=False):
+    def _eval_one_episode(self, env, frames, record=False,
+                          render=False, success=False):
         total_reward = 0
         success = False
 
@@ -258,7 +259,8 @@ class SAC:
 
         return total_reward, success
 
-    def eval(self, env, n_epis=1, render=False, record_n_epis=0, eval_success=False):
+    def eval(self, env, n_epis=1, render=False,
+             record_n_epis=0, eval_success=False):
         if self.bullet and render:
             env.render(mode='human')
 
@@ -269,10 +271,10 @@ class SAC:
         frames = []
         for t in range(n_epis):
             r, success = self._eval_one_episode(env,
-                                       frames=frames,
-                                       record=t < record_n_epis,
-                                       render=render,
-                                       success=eval_success
+                                                frames=frames,
+                                                record=t < record_n_epis,
+                                                render=render,
+                                                success=eval_success
                                                 )
             rewards.append(r)
             successes.append(success)
@@ -288,7 +290,8 @@ class SAC:
         mean = rewards.mean()
         mean_success = np.array(successes).mean()
         if eval_success:
-            logger.info(f'Average score over {n_epis} episodes: {mean:.2f} success_rate: {mean_success:.2f}')
+            logger.info(
+                f'Average score over {n_epis} episodes: {mean:.2f} success_rate: {mean_success:.2f}')
             return mean, rewards, frames, mean_success
         else:
             logger.info(f'Average score over {n_epis} episodes: {mean:.2f}')
