@@ -170,8 +170,7 @@ def main(cfg):
                 step += 1
 
                 timeout_label = 'TimeLimit.truncated'
-                timeout = hasattr(
-                    info, timeout_label) and info[timeout_label]
+                timeout = timeout_label in info.keys() and info[timeout_label]
                 next_valid = 1. if timeout else float(not done)
                 agent.update(obs, action, next_obs, reward, next_valid)
 

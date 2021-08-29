@@ -251,7 +251,7 @@ class SAC:
                     self._add_obs_to_frame(img, frames)
 
                 total_reward += reward
-                if hasattr(info, 'success'):
+                if 'success' in info.keys():
                     success |= bool(info['success'])
 
             if not hasattr(env, 'was_real_done') or env.was_real_done:
