@@ -74,6 +74,7 @@ def main(cfg):
         comet_exp.add_tag('mujoco_sac')
         comet_exp.add_tag(cfg.env)
         comet_exp.set_name(cfg.name)
+        comet_exp.log_code(__file__)
 
         comet_params = {
             'seed': cfg.seed,
@@ -146,7 +147,8 @@ def main(cfg):
                 f'Eval result | total_step: {agent.total_steps} '
                 f'score: {ave_r:.1f} train_score: {ave_train_r:.1f}'
                 f'  elapsed: {elapsed:.1f}')
-            comet_exp.log_metric('reward', ave_r, step=agent.total_steps)
+            if cfg.comet:
+                comet_exp.log_metric('reward', ave_r, step=agent.total_steps)
 
             if ave_r > best_score:
                 best_score = ave_r
