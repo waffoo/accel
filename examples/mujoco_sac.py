@@ -148,7 +148,11 @@ def main(cfg):
                 f'score: {ave_r:.1f} train_score: {ave_train_r:.1f}'
                 f'  elapsed: {elapsed:.1f}')
             if cfg.comet:
-                comet_exp.log_metric('reward', ave_r, step=agent.total_steps)
+                dic = {
+                    'reward': ave_r,
+                    'train_reward': ave_train_r
+                }
+                comet_exp.log_metrics(dic, step=agent.total_steps)
 
             if ave_r > best_score:
                 best_score = ave_r
