@@ -93,9 +93,11 @@ class SAC:
         self.total_steps = 0
         self.n_actions = len(action_space.low)
         self.action_scale = torch.tensor(
-            (action_space.high - action_space.low) / 2).to(device)
+            (action_space.high - action_space.low) / 2,
+            dtype=torch.float32).to(device)
         self.action_bias = torch.tensor(
-            (action_space.low + action_space.high) / 2).to(device)
+            (action_space.low + action_space.high) / 2,
+            dtype=torch.float32).to(device)
 
         self.train_cnt = 0
 
