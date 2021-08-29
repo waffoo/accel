@@ -227,8 +227,9 @@ class SAC:
     def _add_obs_to_frame(self, obs, frames):
         frames.append(obs)
 
-    def _eval_one_episode(self, env, frames, record=False, render=False):
+    def _eval_one_episode(self, env, frames, record=False, render=False, success=False):
         total_reward = 0
+        success = False
 
         while True:
             obs = env.reset()
@@ -241,7 +242,7 @@ class SAC:
 
             while not done:
                 action = self.act(obs, greedy=True)
-                obs, reward, done, _ = env.step(action)
+                obs, reward, done, info = env.step(action)
                 if not self.bullet and render:
                     env.render()
                 if record:
@@ -249,31 +250,46 @@ class SAC:
                     self._add_obs_to_frame(img, frames)
 
                 total_reward += reward
+                if hasattr(info, 'success'):
+                    success |= bool(info['success'])
 
             if not hasattr(env, 'was_real_done') or env.was_real_done:
                 break
 
-        return total_reward
+        return total_reward, success
 
-    def eval(self, env, n_epis=1, render=False, record_n_epis=0):
+    def eval(self, env, n_epis=1, render=False, record_n_epis=0, eval_success=False):
         if self.bullet and render:
             env.render(mode='human')
 
         logger.info(f'Evaluation start')
         assert record_n_epis <= n_epis
         rewards = []
+        successes = []
         frames = []
         for t in range(n_epis):
-            r = self._eval_one_episode(env,
+            r, success = self._eval_one_episode(env,
                                        frames=frames,
                                        record=t < record_n_epis,
-                                       render=render)
+                                       render=render,
+                                       success=eval_success
+                                                )
             rewards.append(r)
-            logger.info(f'Episode {t+1} Score: {r}')
+            successes.append(success)
+            if eval_success:
+                logger.info(f'Episode {t + 1} Score: {r} Success:{success}')
+            else:
+                logger.info(f'Episode {t+1} Score: {r}')
+
             if t < record_n_epis:
                 logger.debug('This episode has been recorded.')
 
         rewards = np.array(rewards)
         mean = rewards.mean()
-        logger.info(f'Average score over {n_epis} episodes: {mean:.2f}')
-        return mean, rewards, frames
+        mean_success = np.array(successes).mean()
+        if eval_success:
+            logger.info(f'Average score over {n_epis} episodes: {mean:.2f} success_rate: {mean_success:.2f}')
+            return mean, rewards, frames, mean_success
+        else:
+            logger.info(f'Average score over {n_epis} episodes: {mean:.2f}')
+            return mean, rewards, frames
